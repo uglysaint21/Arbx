@@ -100,7 +100,7 @@ fn session_is_authenticated(state: &AppState, refresh_activity: bool) -> Result<
         *authenticated = false;
         return Ok(false);
     }
-    *last_activity = Instant::now();
+    if refresh_activity { *last_activity = Instant::now(); }
     Ok(true)
 }
 
@@ -268,22 +268,27 @@ fn list_strategies(state: State<'_, AppState>) -> Result<Vec<StrategyRecord>, St
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn create_strategy(base_token: String, quote_token: String, venues: Vec<String>, state: State<'_, AppState>) -> Result<StrategyRecord, String> {
-    require_authenticated(&state)?;
+fn validate_strategy_input(base_token: &str, quote_token: &str, venues: &[String]) -> Result<(), String> {
     let valid_address = |address: &str| {
         address.len() == 42 && address.starts_with("0x") && address[2..].bytes().all(|b| b.is_ascii_hexdigit())
     };
-    if !valid_address(&base_token) || !valid_address(&quote_token) {
+    if !valid_address(base_token) || !valid_address(quote_token) {
         return Err("Both token addresses must be valid 20-byte EVM addresses.".into());
     }
-    if base_token.eq_ignore_ascii_case(&quote_token) {
+    if base_token.eq_ignore_ascii_case(quote_token) {
         return Err("Base and quote token addresses must be different.".into());
     }
     let unique_venues: std::collections::HashSet<&String> = venues.iter().collect();
     if venues.len() < 2 || unique_venues.len() != venues.len() || venues.iter().any(|v| v.trim().is_empty()) {
         return Err("Select at least two different venues.".into());
     }
+    Ok(())
+}
+
+#[tauri::command]
+fn create_strategy(base_token: String, quote_token: String, venues: Vec<String>, state: State<'_, AppState>) -> Result<StrategyRecord, String> {
+    require_authenticated(&state)?;
+    validate_strategy_input(&base_token, &quote_token, &venues)?;
     let created_at = current_time();
     let record = StrategyRecord {
         id: Uuid::new_v4().to_string(),
@@ -351,6 +356,29 @@ mod tests {
         assert_eq!(version, 1);
         drop(conn);
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn strategy_validation_accepts_two_distinct_evm_tokens_and_venues() {
+        let venues = vec!["dex-a".to_string(), "dex-b".to_string()];
+        assert!(validate_strategy_input(&format!("0x{}", "1".repeat(40)), &format!("0x{}", "2".repeat(40)), &venues).is_ok());
+    }
+
+    #[test]
+    fn strategy_validation_rejects_invalid_or_identical_tokens() {
+        let venues = vec!["dex-a".to_string(), "dex-b".to_string()];
+        assert!(validate_strategy_input("0x1234", &format!("0x{}", "2".repeat(40)), &venues).is_err());
+        let same = format!("0x{}", "1".repeat(40));
+        assert!(validate_strategy_input(&same, &same, &venues).is_err());
+    }
+
+    #[test]
+    fn strategy_validation_rejects_duplicate_or_insufficient_venues() {
+        let base = format!("0x{}", "1".repeat(40));
+        let quote = format!("0x{}", "2".repeat(40));
+        assert!(validate_strategy_input(&base, &quote, &["dex-a".into()]).is_err());
+        assert!(validate_strategy_input(&base, &quote, &["dex-a".into(), "dex-a".into()]).is_err());
+        assert!(validate_strategy_input(&base, &quote, &["dex-a".into(), " ".into()]).is_err());
     }
 
     #[test]
