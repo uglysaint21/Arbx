@@ -92,7 +92,7 @@ fn verify_password(password: &str, encoded_hash: &str) -> bool {
     Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
-fn session_is_authenticated(state: &AppState) -> Result<bool, String> {
+fn session_is_authenticated(state: &AppState, refresh_activity: bool) -> Result<bool, String> {
     let mut authenticated = state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())?;
     if !*authenticated { return Ok(false); }
     let mut last_activity = state.last_activity.lock().map_err(|_| "Application session is unavailable".to_string())?;
@@ -105,7 +105,7 @@ fn session_is_authenticated(state: &AppState) -> Result<bool, String> {
 }
 
 fn require_authenticated(state: &AppState) -> Result<(), String> {
-    if session_is_authenticated(state)? { Ok(()) } else { Err("Application is locked. Unlock ArbX to continue.".to_string()) }
+    if session_is_authenticated(state, true)? { Ok(()) } else { Err("Application is locked. Unlock ArbX to continue.".to_string()) }
 }
 
 #[tauri::command]
@@ -115,7 +115,7 @@ fn auth_state(state: State<'_, AppState>) -> Result<AuthState, String> {
         "SELECT setting_value FROM app_settings WHERE setting_key = 'password_hash'",
         [], |row| row.get(0)
     ).optional().map_err(|e| e.to_string())?;
-    let authenticated = session_is_authenticated(&state)?;
+    let authenticated = session_is_authenticated(&state, false)?;
     Ok(AuthState { has_password: hash.is_some(), authenticated })
 }
 
@@ -362,7 +362,7 @@ mod tests {
             authenticated: Mutex::new(true),
             last_activity: Mutex::new(Instant::now() - SESSION_IDLE_TIMEOUT - Duration::from_secs(1)),
         };
-        assert!(!session_is_authenticated(&state).unwrap());
+        assert!(!session_is_authenticated(&state, false).unwrap());
         assert!(!*state.authenticated.lock().unwrap());
         drop(state);
         let _ = fs::remove_file(path);
