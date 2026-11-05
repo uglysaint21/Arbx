@@ -588,3 +588,19 @@ The native Windows wallet-management slice is now implemented:
 Automated tests cover invalid private-key input, invalid scalar rejection, password hashing, SQLite schema initialization, and session expiry. No user private key has been entered or tested. The owner will perform the real-wallet import and verification only during final acceptance, after the rest of the product and safety controls are complete.
 
 This does not enable signing, RPC, DEX quotes, transaction simulation, or live execution. The stored secret is not yet consumed by a transaction signer.
+
+
+## 15. Polygon read-only RPC integration
+
+The first chain connection slice is read-only and targets Polygon PoS mainnet (chain ID 137).
+
+- The user configures their own provider endpoint through a native Windows credential prompt. No provider URL is hard-coded.
+- The endpoint is stored in Windows Credential Manager under a separate credential entry from the wallet key. It is not stored in SQLite, React state, logs, or command return values.
+- Remote endpoints must use HTTPS. Plain HTTP is permitted only for localhost or a loopback IP. URL user information and fragments are rejected; query parameters remain permitted for providers that issue API keys in the query string.
+- The native HTTP client disables redirects, applies connection/request timeouts, limits response bodies, and validates JSON-RPC version, response ID, and result type.
+- A successful health check requires eth_chainId to return 0x89 (137), then reads eth_blockNumber. A different chain ID is a hard failure.
+- The Settings surface exposes only whether an endpoint is configured, whether the last explicit test succeeded, the verified chain ID, and the latest block number. It never displays or returns the endpoint.
+- The endpoint is not queried automatically in the background. The user explicitly starts a connection test.
+- This milestone does not read wallet balances or ERC-20 state and does not perform signing, transaction simulation, DEX discovery, quoting, or transaction submission.
+
+The owner must choose and supply a provider endpoint. ArbX does not embed a default public provider. The real wallet private-key acceptance test remains deferred until final end-to-end acceptance.
