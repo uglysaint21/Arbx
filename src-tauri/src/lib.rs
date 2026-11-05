@@ -6,14 +6,15 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::{fs, path::PathBuf, sync::Mutex, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use zeroize::Zeroizing;
-mod wallet;
+pub(crate) mod wallet;
+mod rpc;
 
 const SESSION_IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const CURRENT_SCHEMA_VERSION: i64 = 1;
 use tauri::{Manager, State};
 use uuid::Uuid;
 
-struct AppState {
+pub(crate) struct AppState {
     db: Mutex<Connection>,
     authenticated: Mutex<bool>,
     last_activity: Mutex<Instant>,
@@ -128,7 +129,7 @@ fn session_is_authenticated(state: &AppState, refresh_activity: bool) -> Result<
     Ok(true)
 }
 
-fn require_authenticated(state: &AppState) -> Result<(), String> {
+pub(crate) fn require_authenticated(state: &AppState) -> Result<(), String> {
     if session_is_authenticated(state, true)? { Ok(()) } else { Err("Application is locked. Unlock ArbX to continue.".to_string()) }
 }
 
@@ -358,6 +359,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             auth_state, setup_password, login, lock_app,
             wallet_state, import_wallet, remove_wallet,
+            rpc::polygon_rpc_state, rpc::configure_polygon_rpc, rpc::test_polygon_rpc, rpc::clear_polygon_rpc,
             list_strategies, create_strategy, delete_strategy
         ])
         .run(tauri::generate_context!())
