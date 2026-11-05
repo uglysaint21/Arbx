@@ -23,7 +23,14 @@ export default function App() {
   const [auth,setAuth]=useState<AuthState>({has_password:false,authenticated:false});
   const [wallet,setWallet]=useState<WalletState>({connected:false,address:null});
   const [walletBusy,setWalletBusy]=useState(false);
-  const notify=(s:string)=>{setToast(s);window.setTimeout(()=>setToast(""),2600)};
+  const notify=(s:string)=>{
+    if(s.toLowerCase().includes("application is locked")){
+      setAuth(old=>({...old,authenticated:false}));
+      setStrategies([]);
+      setWallet({connected:false,address:null});
+    }
+    setToast(s);window.setTimeout(()=>setToast(""),2600)
+  };
   const refreshStrategies=async()=>{
     if(!desktop)return;
     const rows=await invoke<NativeStrategy[]>("list_strategies");

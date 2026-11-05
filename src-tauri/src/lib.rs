@@ -382,6 +382,24 @@ mod tests {
     }
 
     #[test]
+    fn auth_status_checks_do_not_refresh_idle_activity() {
+        let path = std::env::temp_dir().join(format!("arbx-session-status-test-{}.sqlite3", Uuid::new_v4()));
+        let db = initialize_database(path.clone()).unwrap();
+        let previous = Instant::now() - Duration::from_secs(30);
+        let state = AppState {
+            db: Mutex::new(db),
+            authenticated: Mutex::new(true),
+            last_activity: Mutex::new(previous),
+        };
+        assert!(session_is_authenticated(&state, false).unwrap());
+        assert!(state.last_activity.lock().unwrap().elapsed() >= Duration::from_secs(20));
+        assert!(session_is_authenticated(&state, true).unwrap());
+        assert!(state.last_activity.lock().unwrap().elapsed() < Duration::from_secs(2));
+        drop(state);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn idle_session_expires_and_revokes_authenticated_state() {
         let path = std::env::temp_dir().join(format!("arbx-session-test-{}.sqlite3", Uuid::new_v4()));
         let db = initialize_database(path.clone()).unwrap();
