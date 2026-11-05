@@ -7,6 +7,7 @@ type Page = "Overview" | "Strategies" | "History" | "Settings";
 type Strategy = {id:string; base:string; quote:string; venues:string[]};
 type NativeStrategy = {id:string; base_token:string; quote_token:string; venues:string[]};
 type AuthState = {has_password:boolean; authenticated:boolean};
+type WalletState = {connected:boolean; address:string|null};
 const navigation: {label:Page; icon:typeof LayoutDashboard}[] = [
   {label:"Overview",icon:LayoutDashboard},{label:"Strategies",icon:SlidersHorizontal},{label:"History",icon:Clock3},{label:"Settings",icon:Settings2}
 ];
@@ -20,17 +21,24 @@ export default function App() {
   const [toast,setToast]=useState("");
   const [authReady,setAuthReady]=useState(!desktop);
   const [auth,setAuth]=useState<AuthState>({has_password:false,authenticated:false});
+  const [wallet,setWallet]=useState<WalletState>({connected:false,address:null});
+  const [walletBusy,setWalletBusy]=useState(false);
   const notify=(s:string)=>{setToast(s);window.setTimeout(()=>setToast(""),2600)};
   const refreshStrategies=async()=>{
     if(!desktop)return;
     const rows=await invoke<NativeStrategy[]>("list_strategies");
     setStrategies(rows.map(row=>({id:row.id,base:row.base_token,quote:row.quote_token,venues:row.venues})));
   };
+  const refreshWallet=async()=>{
+    if(!desktop)return;
+    const status=await invoke<WalletState>("wallet_state");
+    setWallet(status);
+  };
   useEffect(()=>{
     if(!desktop)return;
     invoke<AuthState>("auth_state").then(async status=>{
       setAuth(status);
-      if(status.authenticated) await refreshStrategies();
+      if(status.authenticated) { await refreshStrategies(); await refreshWallet(); }
     }).catch(error=>notify(String(error))).finally(()=>setAuthReady(true));
   },[]);
   const save=async(s:Strategy)=>{
@@ -47,12 +55,42 @@ export default function App() {
     catch(error){notify(String(error))}
   };
   const lock=async()=>{
-    try { await invoke("lock_app"); setAuth(old=>({...old,authenticated:false})); setStrategies([]); }
+    try { await invoke("lock_app"); setAuth(old=>({...old,authenticated:false})); setStrategies([]); setWallet({connected:false,address:null}); }
     catch(error){notify(String(error))}
   };
   const authenticated= !desktop || auth.authenticated;
+  const importWallet=async()=>{
+    if(!desktop){notify("Wallet import is available in the Windows desktop app.");return}
+    setWalletBusy(true);
+    try { const status=await invoke<WalletState>("import_wallet"); setWallet(status); notify("Wallet imported into Windows Credential Manager."); }
+    catch(error){ if(!String(error).toLowerCase().includes("cancelled")) notify(String(error)); }
+    finally { setWalletBusy(false); }
+  };
+  const removeWallet=async()=>{
+    if(!desktop || !window.confirm("Remove the imported wallet from this ArbX installation? This deletes its saved private key from Windows Credential Manager.")) return;
+    setWalletBusy(true);
+    try { await invoke("remove_wallet"); setWallet({connected:false,address:null}); notify("Wallet removed from this installation."); }
+    catch(error){notify(String(error))}
+    finally {setWalletBusy(false)}
+  };
+  useEffect(()=>{
+    if(!desktop || !auth.authenticated) return;
+    let timer=window.setTimeout(expire,15*60*1000);
+    function expire(){
+      void invoke("lock_app").then(()=>{
+        setAuth(old=>({...old,authenticated:false}));
+        setStrategies([]);
+        setWallet({connected:false,address:null});
+        setToast("Workspace locked after 15 minutes of inactivity.");
+      }).catch(()=>{});
+    }
+    function reset(){window.clearTimeout(timer);timer=window.setTimeout(expire,15*60*1000)}
+    const events=["pointerdown","keydown","wheel","touchstart"];
+    events.forEach(event=>window.addEventListener(event,reset,{passive:true}));
+    return ()=>{window.clearTimeout(timer);events.forEach(event=>window.removeEventListener(event,reset));};
+  },[desktop,auth.authenticated]);
   if(desktop && !authReady) return <div className="auth-screen"><div className="auth-card"><div className="brand-mark">A</div><h1>Opening ArbX</h1><p>Preparing your local workspace…</p></div></div>;
-  if(desktop && !authenticated) return <AuthGate hasPassword={auth.has_password} onSuccess={async()=>{const status=await invoke<AuthState>("auth_state");setAuth(status);await refreshStrategies();}}/>;
+  if(desktop && !authenticated) return <AuthGate hasPassword={auth.has_password} onSuccess={async()=>{const status=await invoke<AuthState>("auth_state");setAuth(status);await refreshStrategies();await refreshWallet();}}/>;
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">A</div><div><b>ARB<span>X</span></b><small>ARBITRAGE WORKSTATION</small></div></div>
@@ -72,7 +110,12 @@ export default function App() {
         </>}
         {page==="Strategies"&&<><div className="notice"><ShieldCheck size={17}/><div><b>Configuration preview</b><span>Strategies exist in temporary UI state only and are lost when the app reloads.</span></div><strong>DEMO</strong></div>{strategies.length===0?<section className="panel empty full"><div><Plus size={23}/></div><b>Empty</b><p>No strategies have been created. Add a token pair to configure your workspace.</p><button className="primary" onClick={()=>setModal(true)}><Plus size={15}/> ADD FIRST STRATEGY</button></section>:<section className="panel list">{strategies.map(s=><div className="strategy-row" key={s.id}><div><b>{s.base.slice(0,9)}… / {s.quote.slice(0,9)}…</b><small>Polygon PoS · {s.venues.join(" / ")}</small></div><span>DRAFT</span><button onClick={()=>removeStrategy(s.id)} aria-label="Delete strategy"><X size={15}/></button></div>)}</section>}</>}
         {page==="History"&&<><div className="notice"><Clock3 size={17}/><div><b>History is not connected</b><span>Trade records will appear after the trading engine and local database are implemented.</span></div><strong>NO TRADES</strong></div><section className="panel empty full"><div><Clock3 size={22}/></div><b>No trades recorded</b><p>Confirmed and reconciled trades will appear here. Rejected opportunities will never be labelled as completed trades.</p></section></>}
-        {page==="Settings"&&<div className="settings-grid"><Setting icon={<ShieldCheck size={18}/>} title="Application security" text="Password setup, session locking, and protected local credentials will be implemented in the security milestone." status="NOT IMPLEMENTED"/><Setting icon={<Wallet size={18}/>} title="Wallet" text="Private-key import is planned. Do not paste a real private key into this preview." status="IMPORT NOT AVAILABLE"/><Setting icon={<Activity size={18}/>} title="Network" text="Polygon PoS · Chain ID 137 · EVM mainnet target." status="INITIAL NETWORK"/><Setting icon={<CircleHelp size={18}/>} title="About ArbX" text="A local workstation for evaluating same-chain token-pair arbitrage opportunities." status="VERSION 0.1.0 PREVIEW"/></div>}
+        {page==="Settings"&&<div className="settings-grid">
+          <Setting icon={<ShieldCheck size={18}/>} title="Application security" text="Password-protected local workspace with automatic locking after 15 minutes of inactivity. Wallet secrets are kept outside the application database." status="LOCAL SECURITY ACTIVE"/>
+          <section className="panel setting wallet-setting"><i><Wallet size={18}/></i><div className="wallet-info"><b>Wallet</b><p>{wallet.connected&&wallet.address?<>Imported wallet <strong>{wallet.address.slice(0,8)}…{wallet.address.slice(-6)}</strong>. The private key is held in Windows Credential Manager and is never returned to the interface.</>:"No wallet is currently imported. Import opens a native Windows secure credential prompt; the private key is not typed into ArbX's web interface."}</p><small>{wallet.connected?"WALLET CONNECTED · POLYGON EVM ADDRESS":"WALLET NOT CONNECTED"}</small><div className="wallet-actions"><button className="secondary" onClick={importWallet} disabled={!desktop||walletBusy}>{walletBusy?"PLEASE WAIT":wallet.connected?"REPLACE WALLET":"IMPORT WALLET"}</button>{wallet.connected&&<button className="text-button" onClick={removeWallet} disabled={walletBusy}>REMOVE</button>}</div></div></section>
+          <Setting icon={<Activity size={18}/>} title="Network" text="Polygon PoS · Chain ID 137. Network reads and trading are not connected yet." status="INITIAL NETWORK"/>
+          <Setting icon={<CircleHelp size={18}/>} title="About ArbX" text="A local workstation for evaluating same-chain token-pair arbitrage opportunities." status="VERSION 0.1.0 PREVIEW"/>
+        </div>}
         <footer><span>ARBX / LOCAL DESKTOP PREVIEW</span><span>MARKET DATA NOT CONNECTED　●　EXECUTION DISABLED</span></footer>
       </div>
     </main>
