@@ -162,8 +162,8 @@ function AuthGate({hasPassword,onSuccess}:{hasPassword:boolean;onSuccess:()=>Pro
     <h1>{hasPassword?"Welcome back":"Secure your workspace"}</h1>
     <p>{hasPassword?"Unlock ArbX to access your locally stored strategies.":"Create the password required to unlock this ArbX installation."}</p>
     <label htmlFor="app-password">{hasPassword?"APP PASSWORD":"CREATE PASSWORD"}</label>
-    <input id="app-password" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={hasPassword?"current-password":"new-password"} minLength={12} required autoFocus/>
-    {!hasPassword&&<><label htmlFor="confirm-password">CONFIRM PASSWORD</label><input id="confirm-password" type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password" minLength={12} required/><span className="auth-hint">Use at least 12 characters. Your password is stored as a salted Argon2id hash.</span></>}
+    <input id="app-password" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={hasPassword?"current-password":"new-password"} minLength={12} maxLength={256} required autoFocus/>
+    {!hasPassword&&<><label htmlFor="confirm-password">CONFIRM PASSWORD</label><input id="confirm-password" type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password" minLength={12} maxLength={256} required/><span className="auth-hint">Use at least 12 characters. Your password is stored as a salted Argon2id hash.</span></>}
     {error&&<div className="auth-error">{error}</div>}
     <button className="primary auth-submit" disabled={busy}>{busy?"PLEASE WAIT":hasPassword?"UNLOCK WORKSPACE":"CREATE PASSWORD"}</button>
     <span className="auth-foot">LOCAL DEVICE AUTHENTICATION · NO ACCOUNT REQUIRED</span>

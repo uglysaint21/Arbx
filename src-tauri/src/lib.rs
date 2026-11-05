@@ -146,8 +146,9 @@ fn auth_state(state: State<'_, AppState>) -> Result<AuthState, String> {
 #[tauri::command]
 fn setup_password(password: String, state: State<'_, AppState>) -> Result<(), String> {
     let password = Zeroizing::new(password);
-    if password.chars().count() < 12 {
-        return Err("Use a password with at least 12 characters.".into());
+    let password_length = password.chars().count();
+    if !(12..=256).contains(&password_length) {
+        return Err("Use a password between 12 and 256 characters.".into());
     }
     let mut db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
     let existing: Option<String> = db.query_row(
@@ -170,6 +171,9 @@ fn setup_password(password: String, state: State<'_, AppState>) -> Result<(), St
 #[tauri::command]
 fn login(password: String, state: State<'_, AppState>) -> Result<(), String> {
     let password = Zeroizing::new(password);
+    if password.chars().count() > 256 {
+        return Err("The password is too long.".into());
+    }
     let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
     let encoded: Option<String> = db.query_row(
         "SELECT setting_value FROM app_settings WHERE setting_key = 'password_hash'",
