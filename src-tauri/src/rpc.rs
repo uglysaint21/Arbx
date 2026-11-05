@@ -44,8 +44,9 @@ pub fn save_endpoint(_: &str)->Result<(),String>{Err("RPC endpoint storage is su
 #[cfg(windows)]
 fn load_endpoint()->Result<Zeroizing<String>,String>{
     let secret=Zeroizing::new(entry()?.get_secret().map_err(|_|"No Polygon RPC endpoint is configured.".to_string())?);
-    let value=String::from_utf8(secret.to_vec()).map_err(|_|"The saved Polygon RPC endpoint is invalid.".to_string())?;
-    validate_endpoint(&value)?;Ok(Zeroizing::new(value))
+    let text=std::str::from_utf8(&secret).map_err(|_|"The saved Polygon RPC endpoint is invalid.".to_string())?;
+    let value=Zeroizing::new(text.to_owned());
+    validate_endpoint(&value)?;Ok(value)
 }
 #[cfg(not(windows))]
 fn load_endpoint()->Result<Zeroizing<String>,String>{Err("RPC endpoint access is supported only in the Windows desktop application.".into())}
