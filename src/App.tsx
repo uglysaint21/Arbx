@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Activity, ArrowUpRight, BarChart3, Bell, ChevronDown, CircleHelp, Clock3, LayoutDashboard, Plus, Settings2, ShieldCheck, SlidersHorizontal, Wallet, X, Zap } from "lucide-react";
+import { Activity, BarChart3, Bell, ChevronDown, CircleHelp, Clock3, LayoutDashboard, Plus, Settings2, ShieldCheck, SlidersHorizontal, Wallet, X, Zap } from "lucide-react";
 
 type Page = "Overview" | "Strategies" | "History" | "Settings";
 type Strategy = {id:string; base:string; quote:string; venues:string[]};
