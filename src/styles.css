@@ -17,3 +17,13 @@
 .auth-foot{text-align:center;margin-top:16px;letter-spacing:.8px}
 .lock-profile{cursor:pointer;font-size:8px;letter-spacing:.7px}
 .lock-profile:hover{border-color:#a66d40;color:#e5a36b}
+
+.wallet-setting{align-items:flex-start}
+.wallet-info{min-width:0;flex:1}
+.wallet-info p strong{display:inline-block;color:#e7a36b;font-weight:600;letter-spacing:.2px;margin-left:5px}
+.wallet-actions{display:flex;align-items:center;gap:14px;margin-top:15px}
+.secondary{border:1px solid #79563a;background:#211a15;color:#e5a36b;padding:9px 13px;font-size:8px;letter-spacing:.8px;cursor:pointer}
+.secondary:hover:not(:disabled){background:#302117;border-color:#c27d44}
+.secondary:disabled,.text-button:disabled{opacity:.45;cursor:not-allowed}
+.text-button{border:0;background:transparent;color:#b58a6b;font-size:8px;letter-spacing:.8px;cursor:pointer;padding:8px}
+.text-button:hover:not(:disabled){color:#f09a85}

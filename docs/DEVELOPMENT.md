@@ -15,12 +15,22 @@ The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop 
 - Native commands reject strategy access while the application is locked.
 - Token address validation, distinct-token validation, and duplicate-venue rejection are performed again in Rust, not trusted solely to frontend validation.
 
+### Implemented in the wallet foundation
+
+- Wallet import is initiated by a native Windows credential prompt; the private key is never entered into a React input or passed as a Tauri command argument.
+- EVM address derivation is performed in Rust using secp256k1 public-key derivation and Keccak-256.
+- The private key is stored as a secret in Windows Credential Manager through the Keyring library.
+- Only the derived public address and a connected/not-connected status are returned to React; the database stores the public address only.
+- Wallet replacement preserves the previous credential if local metadata persistence fails. Wallet removal similarly attempts to restore the prior credential if metadata cleanup fails.
+- Private-key parsing rejects malformed length, non-hex input, and invalid secp256k1 scalars. Test coverage uses invalid inputs only; no user key or test wallet secret is embedded in the repository.
+- The workspace automatically locks after 15 minutes of inactivity, and the native session check independently enforces the same timeout on protected commands.
+
 ### Still not implemented
 
 - React login/setup/lock screens are not yet connected to these native commands.
-- Windows Credential Manager / DPAPI-backed private-key storage and wallet import.
-- Wallet address derivation and display.
-- Automatic idle lock, password reset/recovery, and session timeout policy.
+- Password reset/recovery and a user-configurable session timeout policy.
+- Automated Windows UI tests for the native credential prompt and Credential Manager integration.
+- A dedicated, reviewed signing service that reads the key only inside the native process when transaction signing is implemented.
 - Database backup/restore UI.
 - Live Polygon RPC, DEX quotes, signing, and trading.
 

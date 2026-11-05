@@ -30,5 +30,8 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Run native unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
       - name: Compile Tauri application
         run: npm run tauri build -- --no-bundle
