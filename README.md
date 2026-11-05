@@ -26,12 +26,13 @@ The initial DEX examples are Uniswap, PancakeSwap, and SushiSwap. The exact supp
 The product behaviour and visual direction are documented in:
 
 - **[ArbX Product Specification](docs/PRODUCT_SPECIFICATION.md)** — product overview, user flows, dashboard, settings, history, arbitrage behaviour, visual direction, boundaries, and open product decisions.
+- **[ArbX Architecture Proposal](docs/ARCHITECTURE.md)** — proposed desktop stack, application boundaries, trading workflow, security model, data concepts, testing strategy, build phases, and decisions awaiting approval.
 
 The product specification intentionally does not define the software architecture or implementation. Those will be documented separately after the remaining product decisions are clarified.
 
 ## Current development stage
 
-The immediate next stage is to define and agree on the architecture. Implementation should begin only after that architecture is documented and reviewed.
+The architecture is now documented as a draft proposal in `docs/ARCHITECTURE.md`. The next step is to confirm the key decisions listed there, then scaffold the application and implement the foundation in small, testable phases. Live trading is deliberately deferred until simulation, risk controls, and transaction handling have been validated.
 
 Until then, this repository is the project’s source of truth for agreed product documentation. Work should be committed to the `main` branch unless the project workflow is deliberately changed.
 
