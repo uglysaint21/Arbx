@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { FormEvent, ReactNode } from "react";
-import { Activity, BarChart3, Bell, ChevronDown, CircleHelp, Clock3, LayoutDashboard, Plus, Settings2, ShieldCheck, SlidersHorizontal, Wallet, X, Zap } from "lucide-react";
+import { Activity, BarChart3, Bell, ChevronDown, CircleHelp, Clock3, LayoutDashboard, Plus, Settings2, ShieldCheck, SlidersHorizontal, Wallet, X, Zap, Globe, RefreshCw } from "lucide-react";
 
 type Page = "Overview" | "Strategies" | "History" | "Settings";
 type Strategy = {id:string; base:string; quote:string; venues:string[]};
 type NativeStrategy = {id:string; base_token:string; quote_token:string; venues:string[]};
 type AuthState = {has_password:boolean; authenticated:boolean};
 type WalletState = {connected:boolean; address:string|null};
+type RpcState = {configured:boolean};
+type RpcHealth = {connected:boolean; chain_id:number; block_number:number};
 const navigation: {label:Page; icon:typeof LayoutDashboard}[] = [
   {label:"Overview",icon:LayoutDashboard},{label:"Strategies",icon:SlidersHorizontal},{label:"History",icon:Clock3},{label:"Settings",icon:Settings2}
 ];
@@ -23,6 +25,9 @@ export default function App() {
   const [auth,setAuth]=useState<AuthState>({has_password:false,authenticated:false});
   const [wallet,setWallet]=useState<WalletState>({connected:false,address:null});
   const [walletBusy,setWalletBusy]=useState(false);
+  const [rpc,setRpc]=useState<RpcState>({configured:false});
+  const [rpcHealth,setRpcHealth]=useState<RpcHealth|null>(null);
+  const [rpcBusy,setRpcBusy]=useState(false);
   const notify=(s:string)=>{
     if(s.toLowerCase().includes("application is locked")){
       setAuth(old=>({...old,authenticated:false}));
@@ -41,11 +46,17 @@ export default function App() {
     const status=await invoke<WalletState>("wallet_state");
     setWallet(status);
   };
+  const refreshRpc=async()=>{
+    if(!desktop)return;
+    const status=await invoke<RpcState>("polygon_rpc_state");
+    setRpc(status);
+    if(!status.configured)setRpcHealth(null);
+  };
   useEffect(()=>{
     if(!desktop)return;
     invoke<AuthState>("auth_state").then(async status=>{
       setAuth(status);
-      if(status.authenticated) { await refreshStrategies(); await refreshWallet(); }
+      if(status.authenticated) { await refreshStrategies(); await refreshWallet(); await refreshRpc(); }
     }).catch(error=>notify(String(error))).finally(()=>setAuthReady(true));
   },[]);
   const save=async(s:Strategy)=>{
@@ -80,6 +91,26 @@ export default function App() {
     catch(error){notify(String(error))}
     finally {setWalletBusy(false)}
   };
+  const configureRpc=async()=>{
+    if(!desktop){notify("Polygon RPC configuration is available in the Windows desktop app.");return}
+    setRpcBusy(true);
+    try{const status=await invoke<RpcState>("configure_polygon_rpc");setRpc(status);setRpcHealth(null);notify("Polygon RPC endpoint saved securely.");}
+    catch(error){if(!String(error).toLowerCase().includes("cancelled"))notify(String(error))}
+    finally{setRpcBusy(false)}
+  };
+  const testRpc=async()=>{
+    setRpcBusy(true);
+    try{const health=await invoke<RpcHealth>("test_polygon_rpc");setRpcHealth(health);notify("Polygon RPC connected · chain ID 137 verified.");}
+    catch(error){setRpcHealth(null);notify(String(error))}
+    finally{setRpcBusy(false)}
+  };
+  const clearRpc=async()=>{
+    if(!window.confirm("Remove the saved Polygon RPC endpoint from Windows Credential Manager?"))return;
+    setRpcBusy(true);
+    try{const status=await invoke<RpcState>("clear_polygon_rpc");setRpc(status);setRpcHealth(null);notify("Polygon RPC endpoint removed.");}
+    catch(error){notify(String(error))}
+    finally{setRpcBusy(false)}
+  };
   useEffect(()=>{
     if(!desktop || !auth.authenticated) return;
     let timer=window.setTimeout(expire,15*60*1000);
@@ -97,7 +128,7 @@ export default function App() {
     return ()=>{window.clearTimeout(timer);events.forEach(event=>window.removeEventListener(event,reset));};
   },[desktop,auth.authenticated]);
   if(desktop && !authReady) return <div className="auth-screen"><div className="auth-card"><div className="brand-mark">A</div><h1>Opening ArbX</h1><p>Preparing your local workspace…</p></div></div>;
-  if(desktop && !authenticated) return <AuthGate hasPassword={auth.has_password} onSuccess={async()=>{const status=await invoke<AuthState>("auth_state");setAuth(status);await refreshStrategies();await refreshWallet();}}/>;
+  if(desktop && !authenticated) return <AuthGate hasPassword={auth.has_password} onSuccess={async()=>{const status=await invoke<AuthState>("auth_state");setAuth(status);await refreshStrategies();await refreshWallet();await refreshRpc();}}/>;
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">A</div><div><b>ARB<span>X</span></b><small>ARBITRAGE WORKSTATION</small></div></div>
@@ -120,7 +151,7 @@ export default function App() {
         {page==="Settings"&&<div className="settings-grid">
           <Setting icon={<ShieldCheck size={18}/>} title="Application security" text="Password-protected local workspace with automatic locking after 15 minutes of inactivity. Wallet secrets are kept outside the application database." status="LOCAL SECURITY ACTIVE"/>
           <section className="panel setting wallet-setting"><i><Wallet size={18}/></i><div className="wallet-info"><b>Wallet</b><p>{wallet.connected&&wallet.address?<>Imported wallet <strong>{wallet.address.slice(0,8)}…{wallet.address.slice(-6)}</strong>. The private key is held in Windows Credential Manager and is never returned to the interface.</>:"No wallet is currently imported. Import opens a native Windows secure credential prompt; the private key is not typed into ArbX's web interface."}</p><small>{wallet.connected?"WALLET CONNECTED · POLYGON EVM ADDRESS":"WALLET NOT CONNECTED"}</small><div className="wallet-actions"><button className="secondary" onClick={importWallet} disabled={!desktop||walletBusy}>{walletBusy?"PLEASE WAIT":wallet.connected?"REPLACE WALLET":"IMPORT WALLET"}</button>{wallet.connected&&<button className="text-button" onClick={removeWallet} disabled={walletBusy}>REMOVE</button>}</div></div></section>
-          <Setting icon={<Activity size={18}/>} title="Network" text="Polygon PoS · Chain ID 137. Network reads and trading are not connected yet." status="INITIAL NETWORK"/>
+          <section className="panel setting network-setting"><i><Globe size={18}/></i><div className="network-info"><b>Polygon PoS network</b><p>Connect a Polygon PoS JSON-RPC provider for read-only chain access. The endpoint is stored in Windows Credential Manager and is never displayed in ArbX.</p><small>{rpcHealth?.connected?"CONNECTED · POLYGON POS · CHAIN ID 137":rpc.configured?"ENDPOINT SAVED · NOT TESTED":"NO RPC ENDPOINT CONFIGURED"}</small>{rpcHealth?.connected&&<div className="rpc-details"><span>CHAIN ID <strong>{rpcHealth.chain_id}</strong></span><span>LATEST BLOCK <strong>{rpcHealth.block_number.toLocaleString()}</strong></span></div>}<div className="wallet-actions"><button className="secondary" onClick={configureRpc} disabled={!desktop||rpcBusy}>{rpcBusy?"PLEASE WAIT":rpc.configured?"REPLACE ENDPOINT":"CONFIGURE ENDPOINT"}</button><button className="secondary" onClick={testRpc} disabled={!desktop||!rpc.configured||rpcBusy}><RefreshCw size={12}/> TEST CONNECTION</button>{rpc.configured&&<button className="text-button" onClick={clearRpc} disabled={rpcBusy}>CLEAR</button>}</div></div></section>
           <Setting icon={<CircleHelp size={18}/>} title="About ArbX" text="A local workstation for evaluating same-chain token-pair arbitrage opportunities." status="VERSION 0.1.0 PREVIEW"/>
         </div>}
         <footer><span>ARBX / LOCAL DESKTOP PREVIEW</span><span>MARKET DATA NOT CONNECTED　●　EXECUTION DISABLED</span></footer>
