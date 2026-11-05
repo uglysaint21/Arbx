@@ -52,7 +52,7 @@ The following is a recommendation for discussion, not a locked decision.
 
 **Alternative:** Electron + React + TypeScript would keep more of the application in one language and has a mature desktop ecosystem. It ships Chromium and Node.js, however, and requires strict process isolation, sandboxing, IPC validation, and careful handling of privileged operations. We should choose Electron if one-language development speed is more important than a smaller native shell and Rust boundary.
 
-**OPEN:** Confirm Tauri or Electron before scaffolding the application.
+**DECIDED:** Tauri 2 + React + TypeScript + Rust. The repository scaffold will use Vite for the frontend build.
 
 ---
 
@@ -181,7 +181,7 @@ Responsibilities:
 
 Initial safety default proposed: **the bot starts OFF after every application restart**. The user must explicitly start it again. The application should persist whether it was previously running for diagnostics, but should not automatically resume live trading.
 
-**OPEN:** Confirm restart behaviour and whether the bot can ever be configured to auto-start.
+**PROPOSED DEFAULT:** The bot starts OFF after every application restart. Auto-start is not part of the first milestone.
 
 ### 4.6 Market data and quote service
 
@@ -234,7 +234,7 @@ A chain adapter provides a common interface for chain-specific operations, such 
 
 Chain-specific logic stays inside its adapter. The domain engine should not contain scattered chain-specific conditionals.
 
-**OPEN:** Whether the first release supports EVM chains only or also Solana. Solana is a materially different transaction and DEX integration model and should not be assumed to fit an EVM adapter.
+**DECIDED:** Version 1 supports EVM only, with Polygon PoS as the sole initial chain. Polygon PoS mainnet uses chain ID `137`. Solana is outside the first-release scope and would require a separate adapter family.
 
 ### 4.10 DEX adapters
 
@@ -258,7 +258,7 @@ Responsibilities:
 - Validate the intended transaction before signing.
 - Support an explicit wallet-address display and ownership verification flow.
 
-**OPEN:** Choose between imported private key, external wallet connection, or both. A MetaMask browser extension should not be assumed to be directly available to a standalone desktop WebView.
+**DECIDED:** Version 1 uses imported private-key credentials. External wallet connection is deferred. The private key must be entered into a native-core command and stored only through a Windows-protected secret-storage integration; it must never be returned to React or written to SQLite/logs.
 
 ### 4.12 Persistence service
 
@@ -496,6 +496,49 @@ Please answer these first. They are the decisions that most strongly affect the 
 - Build the desktop shell and local strategy/history flows first, then read-only chain integration, quotes, paper trading, simulation, and only then live execution.
 
 ---
+
+
+
+## 11. Confirmed project decisions
+
+The following decisions were confirmed by the project owner on 6 November 2026:
+
+| Decision | Confirmed direction |
+|---|---|
+| Desktop framework | Tauri 2 |
+| Frontend | React + TypeScript |
+| Native core | Rust |
+| Initial chain scope | EVM only |
+| First supported chain | Polygon PoS |
+| Wallet onboarding | Import a private key |
+| Arbitrage shape | Buy on one DEX and sell on another, ideally as one atomic on-chain transaction |
+| First milestone | Build the desktop shell and local product flows using fixture/demo data |
+
+### 11.1 Polygon and chain configuration
+
+Polygon PoS mainnet is the first target network and has chain ID `137`. Chain configuration must be represented explicitly and must not rely on a user-entered chain name alone. RPC endpoints must be configurable and must not be hard-coded as a single public provider dependency.
+
+The first UI milestone may show Polygon as the only available chain, but blockchain reads and transactions are not part of that milestone.
+
+### 11.2 Atomic arbitrage requirement
+
+The intended trade is a two-leg cycle:
+
+1. Spend the starting asset to buy the target asset on DEX A.
+2. Sell the acquired target asset for the starting asset on DEX B.
+3. Complete only if the total cycle is expected to return more of the starting asset after all costs.
+
+The two legs must be executed within one atomic transaction whenever live execution is introduced. If either leg fails, the entire transaction must revert so the wallet is not left exposed to only one completed leg.
+
+This requirement is stronger than merely submitting two swaps close together. It will likely require a compatible aggregator/router route or a purpose-built execution contract that can call both venues atomically. The project must not claim atomicity unless the exact route and contracts support it. A route that requires two independent transactions is not an acceptable default execution path.
+
+**OPEN:** Select the exact Polygon DEX deployments and the aggregator/router or audited executor approach before implementing transaction construction. The architecture must include contract allowlisting, simulation, slippage bounds, deadline checks, and a clear policy for token approvals.
+
+### 11.3 First milestone boundary
+
+The first implementation milestone is a desktop shell with fixture data. It includes navigation, dashboard layout, empty and populated strategy states, strategy creation UI, settings and history surfaces, and a visual design system.
+
+It does **not** include real wallet import, secret persistence, password security, SQLite, live Polygon RPC, live DEX quotes, or transaction signing. Those are separate milestones and must not be represented as implemented merely because placeholder screens exist.
 
 ## 12. Reference material
 
