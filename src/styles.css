@@ -27,3 +27,12 @@
 .secondary:disabled,.text-button:disabled{opacity:.45;cursor:not-allowed}
 .text-button{border:0;background:transparent;color:#b58a6b;font-size:8px;letter-spacing:.8px;cursor:pointer;padding:8px}
 .text-button:hover:not(:disabled){color:#f09a85}
+
+.network-setting{align-items:flex-start;grid-column:1/-1}
+.network-info{min-width:0;flex:1}
+.network-info p{max-width:760px}
+.network-info .wallet-actions{flex-wrap:wrap}
+.network-info .secondary{display:inline-flex;align-items:center;gap:7px}
+.rpc-details{display:flex;gap:20px;margin-top:12px;flex-wrap:wrap}
+.rpc-details span{font-size:8px;color:#8e877e;letter-spacing:.8px}
+.rpc-details strong{color:#e6a36b;font-weight:600;margin-left:5px}
