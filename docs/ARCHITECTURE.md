@@ -552,3 +552,19 @@ The proposed technology direction was checked against current official documenta
 - [Electron process model](https://www.electronjs.org/docs/latest/tutorial/process-model) and [security guide](https://www.electronjs.org/docs/latest/tutorial/security/) — alternative desktop framework and its isolation requirements.
 
 These references support the framework comparison; they do not replace a later dependency and security review.
+
+
+## 13. Implementation progress
+
+**Milestone 1 scaffold committed:** the repository now contains a Tauri 2 shell, React + TypeScript frontend, dark ArbX preview interface, navigation, dashboard fixture cards and chart, in-memory strategy creation/deletion, and History/Settings placeholder surfaces.
+
+The scaffold is intentionally non-operational with respect to trading:
+- No wallet import or private-key storage.
+- No password authentication or secure session.
+- No SQLite persistence.
+- No Polygon RPC calls or live token metadata.
+- No DEX adapters or live quote engine.
+- No opportunity detection, transaction simulation, signing, or broadcast.
+- The bot switch only changes local preview state.
+
+**Next engineering task:** run the Windows development build and correct any scaffold/build issues. Then implement the local persistence and security foundation before any wallet credential is accepted.
