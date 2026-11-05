@@ -175,10 +175,27 @@ fn wallet_state(state: State<'_, AppState>) -> Result<WalletState, String> {
         [], |row| row.get(0)
     ).optional().map_err(|e| e.to_string())?;
     drop(db);
-    if address.is_some() && wallet::has_secret()? {
-        Ok(WalletState { connected: true, address })
-    } else {
-        Ok(WalletState { connected: false, address: None })
+    let stored_address = wallet::stored_address()?;
+    match stored_address {
+        Some(derived) => {
+            if address.as_deref() != Some(derived.as_str()) {
+                let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
+                db.execute(
+                    "INSERT INTO app_settings(setting_key, setting_value) VALUES ('wallet_address', ?1)
+                     ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value",
+                    params![derived]
+                ).map_err(|e| e.to_string())?;
+            }
+            Ok(WalletState { connected: true, address: Some(derived) })
+        }
+        None => {
+            if address.is_some() {
+                let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
+                db.execute("DELETE FROM app_settings WHERE setting_key = 'wallet_address'", [])
+                    .map_err(|e| e.to_string())?;
+            }
+            Ok(WalletState { connected: false, address: None })
+        }
     }
 }
 

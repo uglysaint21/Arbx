@@ -154,11 +154,15 @@ pub fn delete_secret() -> Result<Option<Zeroizing<Vec<u8>>>, String> {
 }
 
 #[cfg(windows)]
-pub fn has_secret() -> Result<bool, String> {
+pub fn stored_address() -> Result<Option<String>, String> {
     let credential = entry()?;
     match credential.get_secret() {
-        Ok(value) => { let secret = Zeroizing::new(value); Ok(!secret.is_empty()) }
-        Err(keyring::Error::NoEntry) => Ok(false),
+        Ok(value) => {
+            let secret = Zeroizing::new(value);
+            let address = derive_evm_address(&secret)?;
+            Ok(Some(address))
+        }
+        Err(keyring::Error::NoEntry) => Ok(None),
         Err(_) => Err("Windows Credential Manager could not verify the wallet credential.".into()),
     }
 }
