@@ -1,10 +1,10 @@
 # ArbX
 
-**ArbX** is a planned locally operated desktop application for monitoring and executing token-pair arbitrage opportunities across decentralised exchanges (DEXs) on the same blockchain.
+**ArbX** is a locally operated desktop application in early development for monitoring and executing token-pair arbitrage opportunities across decentralised exchanges (DEXs) on the same blockchain.
 
 The intended application will let a user configure strategies, monitor prices across selected DEX venues, evaluate opportunities after transaction costs, and review portfolio performance and completed trades through a graphical dashboard. The long-term target is a standalone Windows application distributed as an `.exe`.
 
-> **Project status:** Product definition and planning. The repository is being prepared before architecture and implementation are defined. No working trading engine or executable is available yet.
+> **Project status:** Initial desktop UI scaffold committed. The current preview uses fixture data only; wallet security, persistence, live Polygon connectivity, DEX quotes, and trading are not implemented.
 
 ## Product scope
 
@@ -26,13 +26,14 @@ The initial DEX examples are Uniswap, PancakeSwap, and SushiSwap. The exact supp
 The product behaviour and visual direction are documented in:
 
 - **[ArbX Product Specification](docs/PRODUCT_SPECIFICATION.md)** — product overview, user flows, dashboard, settings, history, arbitrage behaviour, visual direction, boundaries, and open product decisions.
-- **[ArbX Architecture Proposal](docs/ARCHITECTURE.md)** — proposed desktop stack, application boundaries, trading workflow, security model, data concepts, testing strategy, build phases, and decisions awaiting approval.
+- **[ArbX Architecture](docs/ARCHITECTURE.md)** — confirmed stack and chain scope, application boundaries, atomic trading workflow, security model, data concepts, testing strategy, and build phases.
+- **[Development Guide](docs/DEVELOPMENT.md)** — prerequisites and commands for running the current preview.
 
 The product specification intentionally does not define the software architecture or implementation. Those will be documented separately after the remaining product decisions are clarified.
 
 ## Current development stage
 
-The architecture is now documented as a draft proposal in `docs/ARCHITECTURE.md`. The next step is to confirm the key decisions listed there, then scaffold the application and implement the foundation in small, testable phases. Live trading is deliberately deferred until simulation, risk controls, and transaction handling have been validated.
+The initial Tauri + React + TypeScript + Rust scaffold is now in the repository. The current milestone is a desktop UI preview with dashboard navigation, strategy creation, History, and Settings surfaces. It uses illustrative data and temporary in-memory strategy state only. The next step is to validate the scaffold with a Windows build, then add local persistence and the security foundation. Live trading is deliberately deferred until atomic route simulation, risk controls, and transaction handling have been validated.
 
 Until then, this repository is the project’s source of truth for agreed product documentation. Work should be committed to the `main` branch unless the project workflow is deliberately changed.
 
