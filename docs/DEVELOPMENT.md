@@ -34,7 +34,7 @@ The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop 
 - Database backup/restore UI.
 - Live Polygon RPC, DEX quotes, signing, and trading.
 
-The existing dashboard remains a preview UI. Its metrics and chart are illustrative. The browser preview does not provide the native SQLite/password functionality.
+The dashboard remains a preview UI: its metrics and chart are illustrative and no blockchain reads or transactions occur. The browser preview does not provide native SQLite, password, or Windows Credential Manager functionality. Wallet import has not been exercised with a real user wallet; that check is intentionally reserved for the owner's final end-to-end acceptance test.
 
 ## Prerequisites
 

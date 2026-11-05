@@ -568,3 +568,23 @@ The scaffold is intentionally non-operational with respect to trading:
 - The bot switch only changes local preview state.
 
 **Next engineering task:** run the Windows development build and correct any scaffold/build issues. Then implement the local persistence and security foundation before any wallet credential is accepted.
+
+
+## 14. Implementation update — wallet and session foundation
+
+The native Windows wallet-management slice is now implemented:
+
+- Import is initiated by ArbX through the Windows credential UI. The key is entered in the native Password field; it is not passed as an argument to a Tauri command and never enters React state.
+- Rust validates the 32-byte secp256k1 scalar and derives the EVM address using the uncompressed public key and Keccak-256.
+- The secret is stored with the Keyring library in the current Windows user's Credential Manager. SQLite stores only the derived public address.
+- The UI receives only the public address and connected status. It can request import/replacement or removal but cannot read the key.
+- Replacement and removal attempt to roll back the credential change if the corresponding local metadata update fails.
+- On workspace unlock, ArbX derives the public address from the protected credential and reconciles it with SQLite. A stale or missing metadata record is repaired; a missing credential clears stale wallet metadata.
+- The native session layer enforces a 15-minute inactivity timeout on protected commands, while the desktop UI locks after the same idle period. The session is always locked after process restart.
+- The native prompt is run on a blocking worker so it does not occupy the UI thread.
+
+### Verification boundary
+
+Automated tests cover invalid private-key input, invalid scalar rejection, password hashing, SQLite schema initialization, and session expiry. No user private key has been entered or tested. The owner will perform the real-wallet import and verification only during final acceptance, after the rest of the product and safety controls are complete.
+
+This does not enable signing, RPC, DEX quotes, transaction simulation, or live execution. The stored secret is not yet consumed by a transaction signer.

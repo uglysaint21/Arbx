@@ -85,7 +85,7 @@ export default function App() {
       }).catch(()=>{});
     }
     function reset(){window.clearTimeout(timer);timer=window.setTimeout(expire,15*60*1000)}
-    const events: (keyof WindowEventMap)[]=["pointerdown","keydown","wheel","touchstart"];
+    const events: (keyof WindowEventMap)[]=["pointerdown","pointermove","keydown","wheel","touchstart"];
     events.forEach(event=>window.addEventListener(event,reset,{passive:true}));
     return ()=>{window.clearTimeout(timer);events.forEach(event=>window.removeEventListener(event,reset));};
   },[desktop,auth.authenticated]);
