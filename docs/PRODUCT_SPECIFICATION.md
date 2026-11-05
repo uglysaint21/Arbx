@@ -38,7 +38,7 @@ The exact convention for displaying the pair (for example, `TOKEN A / TOKEN B`) 
 
 A blockchain is the network on which the token pair and the DEXs operate. ArbX compares DEXs only when they are on the **same blockchain** for a given arbitrage strategy.
 
-The user chooses the blockchain when creating a strategy. The available choices should be presented in a drop-down list containing only chains supported by the application.
+The user chooses the blockchain when creating a strategy. **Version 1 is limited to Polygon PoS (EVM, chain ID 137).** The initial interface may therefore show Polygon as the only available network. Additional chains are outside the first release.
 
 ### 2.3 Decentralised exchange (DEX)
 
@@ -328,11 +328,11 @@ This document does not define how these behaviours are implemented.
 
 The original brief establishes the product direction but leaves several details unresolved. These should be decided before the architecture and implementation specifications are finalised.
 
-1. **Supported blockchains:** Which exact chains are supported at launch? Polygon and Solana appear as examples, but the complete list is not provided.
-2. **DEX availability by chain:** Which of Uniswap, PancakeSwap, and SushiSwap are available on each supported chain? The interface should not imply that every DEX exists on every chain.
-3. **Strategy inputs:** Does a strategy require two token addresses, or does the user provide one token address and select the paired token elsewhere?
-4. **DEX selection:** Must the user select at least two DEXs for each strategy? The comparison examples imply multiple venues, but the form description mentions selecting “the exchange” in the singular.
-5. **Trade model:** Is the intended arbitrage a buy on one DEX and sell on another, or does the strategy involve an initial conversion followed by a separate route? The exact sequence needs to be confirmed.
+1. **Supported blockchains:** Resolved for version 1: Polygon PoS only (EVM, chain ID 137). Other chains are deferred.
+2. **DEX availability by chain:** Still open. Which exact DEX deployments on Polygon should be supported, and which compatible router/aggregator path can execute both swap legs atomically? The interface must not imply that every named DEX is deployed on Polygon.
+3. **Strategy inputs:** Resolved: a strategy requires two token addresses, representing the starting/base token and target/quote token.
+4. **DEX selection:** Resolved: each strategy must compare at least two DEX venues.
+5. **Trade model:** Resolved: buy the target token on one DEX and sell it back into the starting token on another DEX. Both legs must execute atomically in one transaction; two independent transactions are not acceptable.
 6. **Funding model:** What does “deposited crypto” mean in the product? Is ArbX using assets already held in the configured wallet, and which token is used as the starting asset?
 7. **Profit calculation:** In which currency or token is profit measured? Which costs must be included beyond transaction fees, and what minimum net profit is required?
 8. **Execution protection:** Should the user be able to set a maximum trade size, minimum profit threshold, or other limits? These controls are not specified in the original brief.
@@ -340,7 +340,7 @@ The original brief establishes the product direction but leaves several details 
 10. **In-progress trades:** What should happen if the user switches the bot off while a trade is being prepared or submitted?
 11. **Portfolio valuation:** Which currency should be used to display portfolio balance and P&L?
 12. **History detail:** Which exact values should each trade record contain, and should failed or rejected attempts be recorded separately?
-13. **Wallet interaction:** Should the user paste a private key, connect a wallet through another method, or have both options? The original brief mentions MetaMask details but does not settle the interaction.
+13. **Wallet interaction:** Resolved: version 1 uses imported private-key credentials. The private key must be protected locally and must never be exposed back to the UI, logs, or ordinary application storage.
 14. **Password recovery:** What should happen if the user forgets the application password? No recovery process is specified.
 15. **Strategy deletion:** Should the user be asked to confirm before deleting a strategy? Historical trade records should remain available, but this should be confirmed as the intended behaviour.
 
