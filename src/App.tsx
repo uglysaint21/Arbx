@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { Activity, ArrowUpRight, BarChart3, Bell, ChevronDown, CircleHelp, Clock3, LayoutDashboard, Plus, Settings2, ShieldCheck, SlidersHorizontal, Wallet, X, Zap } from "lucide-react";
 
 type Page = "Overview" | "Strategies" | "History" | "Settings";
@@ -43,12 +44,12 @@ export default function App() {
   </div>;
 }
 
-function Metric({label,value,sub,icon}:{label:string;value:string;sub:string;icon:React.ReactNode}){return <div className="metric"><div><span>{label}</span>{icon}</div><strong>{value}</strong><small>{sub}</small></div>}
+function Metric({label,value,sub,icon}:{label:string;value:string;sub:string;icon:ReactNode}){return <div className="metric"><div><span>{label}</span>{icon}</div><strong>{value}</strong><small>{sub}</small></div>}
 function StrategyRow({strategy}:{strategy:Strategy}){return <div className="strategy-row"><div><b>{strategy.base.slice(0,9)}… / {strategy.quote.slice(0,9)}…</b><small>{strategy.venues.join(" / ")}</small></div><span>POLYGON POS</span><em>DRAFT</em></div>}
-function Setting({icon,title,text,status}:{icon:React.ReactNode;title:string;text:string;status:string}){return <section className="panel setting"><i>{icon}</i><div><b>{title}</b><p>{text}</p><small>{status}</small></div></section>}
+function Setting({icon,title,text,status}:{icon:ReactNode;title:string;text:string;status:string}){return <section className="panel setting"><i>{icon}</i><div><b>{title}</b><p>{text}</p><small>{status}</small></div></section>}
 function CreateStrategy({close,save}:{close:()=>void;save:(s:Strategy)=>void}){
   const [base,setBase]=useState("");const [quote,setQuote]=useState("");const [venues,setVenues]=useState(["Demo Venue A","Demo Venue B"]);const [error,setError]=useState("");
   const toggle=(v:string)=>setVenues(old=>old.includes(v)?old.filter(x=>x!==v):[...old,v]);
-  const submit=(e:React.FormEvent)=>{e.preventDefault();if(!/^0x[a-fA-F0-9]{40}$/.test(base)||!/^0x[a-fA-F0-9]{40}$/.test(quote)){setError("Enter two valid 20-byte EVM token addresses.");return}if(base.toLowerCase()===quote.toLowerCase()){setError("Token addresses must be different.");return}if(venues.length<2){setError("Choose at least two venues.");return}save({id:crypto.randomUUID(),base,quote,venues})};
+  const submit=(e:FormEvent)=>{e.preventDefault();if(!/^0x[a-fA-F0-9]{40}$/.test(base)||!/^0x[a-fA-F0-9]{40}$/.test(quote)){setError("Enter two valid 20-byte EVM token addresses.");return}if(base.toLowerCase()===quote.toLowerCase()){setError("Token addresses must be different.");return}if(venues.length<2){setError("Choose at least two venues.");return}save({id:crypto.randomUUID(),base,quote,venues})};
   return <div className="backdrop" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><div className="modal-head"><div><small>NEW CONFIGURATION</small><h2>Create strategy</h2><p>Configure a pair for same-chain venue comparison.</p></div><button onClick={close}><X size={18}/></button></div><form onSubmit={submit}><label>NETWORK <span>FIXED FOR V1</span></label><div className="field">Polygon PoS <small>CHAIN ID 137</small></div><label htmlFor="base">BASE TOKEN ADDRESS</label><input id="base" value={base} onChange={e=>setBase(e.target.value.trim())} placeholder="0x…" autoComplete="off" spellCheck={false}/><label htmlFor="quote">QUOTE TOKEN ADDRESS</label><input id="quote" value={quote} onChange={e=>setQuote(e.target.value.trim())} placeholder="0x…" autoComplete="off" spellCheck={false}/><label>COMPARISON VENUES <span>SELECT AT LEAST TWO</span></label><div className="venues">{["Demo Venue A","Demo Venue B","Demo Venue C"].map(v=><button type="button" key={v} className={venues.includes(v)?"chosen":""} onClick={()=>toggle(v)}>{venues.includes(v)?"✓":"+"} {v}<small>MOCK</small></button>)}</div><p className="disclaimer">Demo only. No addresses are queried and no transactions can be executed.</p>{error&&<p className="error">{error}</p>}<div className="modal-actions"><button type="button" className="secondary" onClick={close}>CANCEL</button><button type="submit" className="primary">SAVE STRATEGY ↗</button></div></form></div></div>
 }
