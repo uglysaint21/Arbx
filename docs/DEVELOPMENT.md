@@ -27,7 +27,6 @@ The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop 
 
 ### Still not implemented
 
-- React login/setup/lock screens are not yet connected to these native commands.
 - Password reset/recovery and a user-configurable session timeout policy.
 - Automated Windows UI tests for the native credential prompt and Credential Manager integration.
 - A dedicated, reviewed signing service that reads the key only inside the native process when transaction signing is implemented.
