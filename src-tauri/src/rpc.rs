@@ -66,9 +66,12 @@ async fn rpc_string(client:&Client,endpoint:&str,method:&str)->Result<String,Str
         if body.len()+chunk.len()>MAX_RESPONSE_BYTES{return Err("The Polygon RPC response exceeded the allowed size.".into())}
         body.extend_from_slice(&chunk);
     }
-    let parsed:Value=serde_json::from_slice(&body).map_err(|_|"The Polygon RPC provider returned invalid JSON.".to_string())?;
+    parse_rpc_result(&body)
+}
+fn parse_rpc_result(body:&[u8])->Result<String,String>{
+    let parsed:Value=serde_json::from_slice(body).map_err(|_|"The Polygon RPC provider returned invalid JSON.".to_string())?;
     if parsed.get("jsonrpc").and_then(Value::as_str)!=Some("2.0")||parsed.get("id").and_then(Value::as_i64)!=Some(1){return Err("The Polygon RPC response did not match the JSON-RPC request.".into())}
-    if parsed.get("error").is_some(){return Err("The Polygon RPC provider rejected the JSON-RPC request.".into())}
+    if parsed.get("error").filter(|error|!error.is_null()).is_some(){return Err("The Polygon RPC provider rejected the JSON-RPC request.".into())}
     parsed.get("result").and_then(Value::as_str).map(str::to_string).ok_or_else(||"The Polygon RPC response did not contain a valid result.".into())
 }
 pub async fn test_saved_endpoint()->Result<RpcHealth,String>{
@@ -115,6 +118,14 @@ mod tests{
         assert!(validate_endpoint("ftp://rpc.example").is_err());
         assert!(validate_endpoint("not a url").is_err());
         assert!(validate_endpoint(" https://rpc.example").is_err());
+    }
+    #[test]fn validates_json_rpc_response_envelope(){
+        assert_eq!(parse_rpc_result(br#"{"jsonrpc":"2.0","id":1,"result":"0x89"}"#).unwrap(),"0x89");
+        assert!(parse_rpc_result(br#"{"jsonrpc":"2.0","id":2,"result":"0x89"}"#).is_err());
+        assert!(parse_rpc_result(br#"{"jsonrpc":"1.0","id":1,"result":"0x89"}"#).is_err());
+        assert!(parse_rpc_result(br#"{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":"failed"}}"#).is_err());
+        assert!(parse_rpc_result(br#"{"jsonrpc":"2.0","id":1}"#).is_err());
+        assert!(parse_rpc_result(b"not json").is_err());
     }
     #[test]fn quantity_parser_checks_hex_and_bounds(){
         assert_eq!(parse_quantity("0x89").unwrap(),137);assert_eq!(parse_quantity("0x0").unwrap(),0);
