@@ -18,12 +18,14 @@ pub struct RpcHealth{connected:bool,chain_id:u64,block_number:u64}
 pub fn validate_endpoint(input:&str)->Result<url::Url,String>{
     if input.len()>8192||input.trim()!=input||input.is_empty(){return Err("Enter a valid RPC endpoint.".into())}
     let parsed=url::Url::parse(input).map_err(|_|"The RPC endpoint must be a valid URL.".to_string())?;
-    if !parsed.username().is_empty()||parsed.password().is_some()||parsed.fragment().is_some(){return Err("RPC endpoint URLs must not contain embedded user information or fragments.".into())}
+    let authority=input.split_once("://").map(|(_,rest)|rest.split(['/', '?', '#']).next().unwrap_or("")).unwrap_or("");
+    if authority.contains('@')||!parsed.username().is_empty()||parsed.password().is_some()||parsed.fragment().is_some(){return Err("RPC endpoint URLs must not contain embedded user information or fragments.".into())}
     let host=parsed.host_str().ok_or_else(||"The RPC endpoint must include a host.".to_string())?;
     match parsed.scheme(){
         "https"=>{},
         "http"=>{
-            let loopback=host.eq_ignore_ascii_case("localhost")||host.parse::<IpAddr>().map(|ip|ip.is_loopback()).unwrap_or(false);
+            let ip_host=host.strip_prefix('[').and_then(|value|value.strip_suffix(']')).unwrap_or(host);
+            let loopback=host.eq_ignore_ascii_case("localhost")||ip_host.parse::<IpAddr>().map(|ip|ip.is_loopback()).unwrap_or(false);
             if !loopback{return Err("Use HTTPS for remote RPC providers. HTTP is allowed only for localhost or a loopback IP.".into())}
         },
         _=>return Err("RPC endpoints must use HTTPS (or HTTP on loopback only).".into())
@@ -108,6 +110,7 @@ mod tests{
     #[test]fn rejects_remote_http_and_unsafe_url_parts(){
         assert!(validate_endpoint("http://rpc.example").is_err());
         assert!(validate_endpoint("https://user:pass@rpc.example").is_err());
+        assert!(validate_endpoint("https://@rpc.example").is_err());
         assert!(validate_endpoint("https://rpc.example/path#fragment").is_err());
         assert!(validate_endpoint("ftp://rpc.example").is_err());
         assert!(validate_endpoint("not a url").is_err());
