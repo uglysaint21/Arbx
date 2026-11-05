@@ -4,19 +4,30 @@ use argon2::{
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
-use std::{fs, path::PathBuf, sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
+use std::{fs, path::PathBuf, sync::Mutex, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+use zeroize::Zeroizing;
+mod wallet;
+
+const SESSION_IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 use tauri::{Manager, State};
 use uuid::Uuid;
 
 struct AppState {
     db: Mutex<Connection>,
     authenticated: Mutex<bool>,
+    last_activity: Mutex<Instant>,
 }
 
 #[derive(Serialize)]
 struct AuthState {
     has_password: bool,
     authenticated: bool,
+}
+
+#[derive(Serialize)]
+struct WalletState {
+    connected: bool,
+    address: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -81,9 +92,20 @@ fn verify_password(password: &str, encoded_hash: &str) -> bool {
     Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
+fn session_is_authenticated(state: &AppState) -> Result<bool, String> {
+    let mut authenticated = state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())?;
+    if !*authenticated { return Ok(false); }
+    let mut last_activity = state.last_activity.lock().map_err(|_| "Application session is unavailable".to_string())?;
+    if last_activity.elapsed() >= SESSION_IDLE_TIMEOUT {
+        *authenticated = false;
+        return Ok(false);
+    }
+    *last_activity = Instant::now();
+    Ok(true)
+}
+
 fn require_authenticated(state: &AppState) -> Result<(), String> {
-    let authenticated = state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())?;
-    if *authenticated { Ok(()) } else { Err("Application is locked".to_string()) }
+    if session_is_authenticated(state)? { Ok(()) } else { Err("Application is locked. Unlock ArbX to continue.".to_string()) }
 }
 
 #[tauri::command]
@@ -93,12 +115,13 @@ fn auth_state(state: State<'_, AppState>) -> Result<AuthState, String> {
         "SELECT setting_value FROM app_settings WHERE setting_key = 'password_hash'",
         [], |row| row.get(0)
     ).optional().map_err(|e| e.to_string())?;
-    let authenticated = *state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())?;
+    let authenticated = session_is_authenticated(&state)?;
     Ok(AuthState { has_password: hash.is_some(), authenticated })
 }
 
 #[tauri::command]
 fn setup_password(password: String, state: State<'_, AppState>) -> Result<(), String> {
+    let password = Zeroizing::new(password);
     if password.chars().count() < 12 {
         return Err("Use a password with at least 12 characters.".into());
     }
@@ -116,11 +139,13 @@ fn setup_password(password: String, state: State<'_, AppState>) -> Result<(), St
         params![encoded]
     ).map_err(|e| e.to_string())?;
     *state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())? = true;
+    *state.last_activity.lock().map_err(|_| "Application session is unavailable".to_string())? = Instant::now();
     Ok(())
 }
 
 #[tauri::command]
 fn login(password: String, state: State<'_, AppState>) -> Result<(), String> {
+    let password = Zeroizing::new(password);
     let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
     let encoded: Option<String> = db.query_row(
         "SELECT setting_value FROM app_settings WHERE setting_key = 'password_hash'",
@@ -131,12 +156,73 @@ fn login(password: String, state: State<'_, AppState>) -> Result<(), String> {
         return Err("Incorrect password.".into());
     }
     *state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())? = true;
+    *state.last_activity.lock().map_err(|_| "Application session is unavailable".to_string())? = Instant::now();
     Ok(())
 }
 
 #[tauri::command]
 fn lock_app(state: State<'_, AppState>) -> Result<(), String> {
     *state.authenticated.lock().map_err(|_| "Application session is unavailable".to_string())? = false;
+    Ok(())
+}
+
+#[tauri::command]
+fn wallet_state(state: State<'_, AppState>) -> Result<WalletState, String> {
+    require_authenticated(&state)?;
+    let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
+    let address: Option<String> = db.query_row(
+        "SELECT setting_value FROM app_settings WHERE setting_key = 'wallet_address'",
+        [], |row| row.get(0)
+    ).optional().map_err(|e| e.to_string())?;
+    drop(db);
+    if address.is_some() && wallet::has_secret()? {
+        Ok(WalletState { connected: true, address })
+    } else {
+        Ok(WalletState { connected: false, address: None })
+    }
+}
+
+#[tauri::command]
+fn import_wallet(state: State<'_, AppState>) -> Result<WalletState, String> {
+    require_authenticated(&state)?;
+    let (address, private_key) = wallet::prompt_and_derive()?;
+    let previous = wallet::replace_secret(&private_key)?;
+    let update_result = (|| -> Result<(), String> {
+        let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
+        db.execute(
+            "INSERT INTO app_settings(setting_key, setting_value) VALUES ('wallet_address', ?1)
+             ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value",
+            params![address]
+        ).map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+    if let Err(error) = update_result {
+        let previous_bytes = previous.as_ref().map(|value| value.as_slice());
+        if wallet::restore_secret(previous_bytes).is_err() {
+            return Err("Wallet metadata could not be saved and the previous secure credential could not be restored. Stop here and contact support before continuing.".into());
+        }
+        return Err(error);
+    }
+    Ok(WalletState { connected: true, address: Some(address) })
+}
+
+#[tauri::command]
+fn remove_wallet(state: State<'_, AppState>) -> Result<(), String> {
+    require_authenticated(&state)?;
+    let previous = wallet::delete_secret()?;
+    let update_result = (|| -> Result<(), String> {
+        let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
+        db.execute("DELETE FROM app_settings WHERE setting_key = 'wallet_address'", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+    if let Err(error) = update_result {
+        let previous_bytes = previous.as_ref().map(|value| value.as_slice());
+        if wallet::restore_secret(previous_bytes).is_err() {
+            return Err("Wallet metadata could not be updated and the secure credential could not be restored. Stop here and contact support before continuing.".into());
+        }
+        return Err(error);
+    }
     Ok(())
 }
 
@@ -212,11 +298,13 @@ pub fn run() {
             app.manage(AppState {
                 db: Mutex::new(db),
                 authenticated: Mutex::new(false),
+                last_activity: Mutex::new(Instant::now()),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             auth_state, setup_password, login, lock_app,
+            wallet_state, import_wallet, remove_wallet,
             list_strategies, create_strategy, delete_strategy
         ])
         .run(tauri::generate_context!())
