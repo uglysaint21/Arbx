@@ -50,7 +50,7 @@ Source code and project documentation: [github.com/uglysaint21/Arbx](https://git
 
 The desktop shell now includes first-launch password setup, login, manual locking, 15-minute inactivity locking, local SQLite strategy persistence, and a Windows-native wallet import/removal flow. Imported private keys are stored in the current Windows user's Credential Manager; only the derived public address is shown in the UI and saved in SQLite.
 
-The wallet import flow has not been tested with a real user key. That test is intentionally deferred to the owner's final acceptance step. ArbX still has no Polygon RPC integration, DEX quote engine, paper trading, transaction simulation, signing, or live trading. Dashboard figures remain illustrative.
+The wallet import flow has not been tested with a real user key. That test is intentionally deferred to the owner's final acceptance step. ArbX now has user-configured read-only Polygon RPC health checks, but no token-balance reads, ERC-20 metadata, DEX quote engine, paper trading, transaction simulation, signing, or live trading. Dashboard figures remain illustrative.
 
 
 ## Polygon read-only connectivity
