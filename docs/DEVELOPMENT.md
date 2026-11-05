@@ -25,13 +25,22 @@ The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop 
 - Private-key parsing rejects malformed length, non-hex input, and invalid secp256k1 scalars. Test coverage uses invalid inputs only; no user key or test wallet secret is embedded in the repository.
 - The workspace automatically locks after 15 minutes of inactivity, and the native session check independently enforces the same timeout on protected commands.
 
+### Implemented in the Polygon read-only integration
+
+- Polygon PoS JSON-RPC endpoint is entered through a native Windows credential prompt; the endpoint, including any provider API key, is stored in Windows Credential Manager, never SQLite or React state.
+- Endpoint validation permits HTTPS providers and HTTP only for localhost/loopback; rejects URL user information and fragments.
+- Native RPC client disables redirects, uses bounded timeouts and a 64 KiB response cap, and validates JSON-RPC version, request ID, and result shape.
+- Connection test calls eth_chainId and eth_blockNumber; it rejects any chain other than Polygon PoS chain ID 137.
+- Settings displays only configured/connected status, verified chain ID, and latest block number; the endpoint itself is never returned to the UI.
+- This integration is read-only: it does not access the wallet key, sign, submit transactions, or query DEXs.
+
 ### Still not implemented
 
 - Password reset/recovery and a user-configurable session timeout policy.
 - Automated Windows UI tests for the native credential prompt and Credential Manager integration.
 - A dedicated, reviewed signing service that reads the key only inside the native process when transaction signing is implemented.
 - Database backup/restore UI.
-- Live Polygon RPC, DEX quotes, signing, and trading.
+- Live token balances and metadata, DEX quotes, signing, and trading.
 
 The dashboard remains a preview UI: its metrics and chart are illustrative and no blockchain reads or transactions occur. The browser preview does not provide native SQLite, password, or Windows Credential Manager functionality. Wallet import has not been exercised with a real user wallet; that check is intentionally reserved for the owner's final end-to-end acceptance test.
 
