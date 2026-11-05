@@ -9,6 +9,7 @@ use zeroize::Zeroizing;
 mod wallet;
 
 const SESSION_IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const CURRENT_SCHEMA_VERSION: i64 = 1;
 use tauri::{Manager, State};
 use uuid::Uuid;
 
@@ -47,7 +48,7 @@ fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn initialize_database(path: PathBuf) -> Result<Connection, String> {
-    let conn = Connection::open(path).map_err(|e| e.to_string())?;
+    let mut conn = Connection::open(path).map_err(|e| e.to_string())?;
     conn.execute_batch(
         "
         PRAGMA foreign_keys = ON;
@@ -56,22 +57,45 @@ fn initialize_database(path: PathBuf) -> Result<Connection, String> {
             version INTEGER PRIMARY KEY,
             applied_at INTEGER NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS app_settings (
-            setting_key TEXT PRIMARY KEY,
-            setting_value TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS strategies (
-            id TEXT PRIMARY KEY,
-            chain_id INTEGER NOT NULL,
-            base_token TEXT NOT NULL,
-            quote_token TEXT NOT NULL,
-            venues_json TEXT NOT NULL,
-            created_at INTEGER NOT NULL
-        );
-        INSERT OR IGNORE INTO schema_migrations(version, applied_at)
-        VALUES (1, unixepoch());
         "
     ).map_err(|e| e.to_string())?;
+
+    let current_version: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+        [], |row| row.get(0)
+    ).map_err(|e| e.to_string())?;
+
+    if current_version > CURRENT_SCHEMA_VERSION {
+        return Err(format!(
+            "This database uses schema version {current_version}, but this ArbX build supports up to {CURRENT_SCHEMA_VERSION}. Update ArbX before opening this workspace."
+        ));
+    }
+
+    if current_version < 1 {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS strategies (
+                id TEXT PRIMARY KEY,
+                chain_id INTEGER NOT NULL,
+                base_token TEXT NOT NULL,
+                quote_token TEXT NOT NULL,
+                venues_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            "
+        ).map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?1, ?2)",
+            params![1, current_time()]
+        ).map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+
     Ok(conn)
 }
 
@@ -396,6 +420,40 @@ mod tests {
         assert!(session_is_authenticated(&state, true).unwrap());
         assert!(state.last_activity.lock().unwrap().elapsed() < Duration::from_secs(2));
         drop(state);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn database_migrations_are_idempotent_and_preserve_data() {
+        let path = std::env::temp_dir().join(format!("arbx-migration-test-{}.sqlite3", Uuid::new_v4()));
+        {
+            let conn = initialize_database(path.clone()).unwrap();
+            conn.execute(
+                "INSERT INTO app_settings(setting_key, setting_value) VALUES ('test_key', 'test_value')",
+                []
+            ).unwrap();
+        }
+        let conn = initialize_database(path.clone()).unwrap();
+        let value: String = conn.query_row(
+            "SELECT setting_value FROM app_settings WHERE setting_key = 'test_key'",
+            [], |row| row.get(0)
+        ).unwrap();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row.get(0)).unwrap();
+        assert_eq!(value, "test_value");
+        assert_eq!(count, 1);
+        drop(conn);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn database_refuses_a_newer_unknown_schema() {
+        let path = std::env::temp_dir().join(format!("arbx-future-schema-test-{}.sqlite3", Uuid::new_v4()));
+        {
+            let conn = Connection::open(path.clone()).unwrap();
+            conn.execute_batch("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL);").unwrap();
+            conn.execute("INSERT INTO schema_migrations(version, applied_at) VALUES (999, 0)", []).unwrap();
+        }
+        assert!(initialize_database(path.clone()).is_err());
         let _ = fs::remove_file(path);
     }
 
