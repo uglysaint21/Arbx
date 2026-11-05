@@ -203,3 +203,34 @@ mod tests {
         assert!(decode_private_key(&"0".repeat(64)).is_err());
     }
 }
+
+#[cfg(windows)]
+pub fn prompt_for_rpc_endpoint() -> Result<Zeroizing<String>, String> {
+    use std::{ffi::c_void, mem::size_of, ptr::{null, null_mut}};
+    use windows_sys::Win32::{Foundation::{GetLastError, ERROR_CANCELLED, ERROR_INSUFFICIENT_BUFFER}, Security::Credentials::{CredUIPromptForWindowsCredentialsW, CredUnPackAuthenticationBufferW, CREDUI_INFOW, CREDUIWIN_GENERIC}, System::Com::CoTaskMemFree};
+    fn wide(s:&str)->Vec<u16>{s.encode_utf16().chain(std::iter::once(0)).collect()}
+    struct AuthBuffer(*mut c_void,usize);
+    impl Drop for AuthBuffer{fn drop(&mut self){if !self.0.is_null(){unsafe{std::ptr::write_bytes(self.0.cast::<u8>(),0,self.1);CoTaskMemFree(self.0);}}}}
+    let caption=wide("Configure Polygon RPC");
+    let message=wide("Paste your Polygon PoS HTTPS RPC endpoint into the Password field. It is stored in Windows Credential Manager and is never shown in the ArbX interface.");
+    let ui=CREDUI_INFOW{cbSize:size_of::<CREDUI_INFOW>() as u32,hwndParent:null_mut(),pszMessageText:message.as_ptr(),pszCaptionText:caption.as_ptr(),hbmBanner:null_mut()};
+    let(mut package,mut buffer,mut size)=(0u32,null_mut(),0u32);
+    let status=unsafe{CredUIPromptForWindowsCredentialsW(&ui,0,&mut package,null(),0,&mut buffer,&mut size,null_mut(),CREDUIWIN_GENERIC)};
+    if status==ERROR_CANCELLED{return Err("RPC configuration was cancelled.".into())}
+    if status!=0||buffer.is_null()||size==0{return Err("Windows could not open the secure RPC-entry prompt.".into())}
+    let _guard=AuthBuffer(buffer,size as usize);
+    let(mut ul,mut dl,mut pl)=(0u32,0u32,0u32);
+    let ok=unsafe{CredUnPackAuthenticationBufferW(0,buffer,size,null_mut(),&mut ul,null_mut(),&mut dl,null_mut(),&mut pl)};
+    if ok==0&&unsafe{GetLastError()}!=ERROR_INSUFFICIENT_BUFFER{return Err("Windows could not read the RPC prompt result.".into())}
+    if pl==0||pl>8192||ul>2048||dl>2048{return Err("The secure prompt returned an invalid endpoint size.".into())}
+    let(mut uc,mut dc,mut pc)=(ul.max(1),dl.max(1),pl.max(1));
+    let mut user=Zeroizing::new(vec![0u16;uc as usize]);let mut domain=Zeroizing::new(vec![0u16;dc as usize]);let mut pass=Zeroizing::new(vec![0u16;pc as usize]);
+    let ok=unsafe{CredUnPackAuthenticationBufferW(0,buffer,size,user.as_mut_ptr(),&mut uc,domain.as_mut_ptr(),&mut dc,pass.as_mut_ptr(),&mut pc)};
+    if ok==0{return Err("Windows could not unpack the RPC credential response.".into())}
+    let end=pass.iter().position(|x|*x==0).unwrap_or(pass.len());
+    let value=String::from_utf16(&pass[..end]).map_err(|_|"The RPC endpoint must be valid text.".to_string())?;
+    if value.trim().is_empty(){return Err("No RPC endpoint was entered.".into())}
+    Ok(Zeroizing::new(value.trim().to_string()))
+}
+#[cfg(not(windows))]
+pub fn prompt_for_rpc_endpoint()->Result<Zeroizing<String>,String>{Err("RPC endpoint configuration is currently supported only in the Windows desktop application.".into())}
