@@ -80,11 +80,14 @@ fn prompt_for_private_key() -> Result<Zeroizing<String>, String> {
     if pass_len == 0 || pass_len > 2048 || user_len > 2048 || domain_len > 2048 {
         return Err("The secure prompt returned an invalid credential size.".into());
     }
-    let mut username = Zeroizing::new(vec![0u16; user_len.max(1) as usize]);
-    let mut domain = Zeroizing::new(vec![0u16; domain_len.max(1) as usize]);
-    let mut password = Zeroizing::new(vec![0u16; pass_len as usize]);
+    let mut username_capacity = user_len.max(1);
+    let mut domain_capacity = domain_len.max(1);
+    let mut password_capacity = pass_len.max(1);
+    let mut username = Zeroizing::new(vec![0u16; username_capacity as usize]);
+    let mut domain = Zeroizing::new(vec![0u16; domain_capacity as usize]);
+    let mut password = Zeroizing::new(vec![0u16; password_capacity as usize]);
     let ok = unsafe {
-        CredUnPackAuthenticationBufferW(0, auth_buffer, auth_size, username.as_mut_ptr(), &mut user_len, domain.as_mut_ptr(), &mut domain_len, password.as_mut_ptr(), &mut pass_len)
+        CredUnPackAuthenticationBufferW(0, auth_buffer, auth_size, username.as_mut_ptr(), &mut username_capacity, domain.as_mut_ptr(), &mut domain_capacity, password.as_mut_ptr(), &mut password_capacity)
     };
     if ok == 0 { return Err("Windows could not unpack the secure credential response.".into()); }
     let end = password.iter().position(|unit| *unit == 0).unwrap_or(password.len());
