@@ -183,9 +183,12 @@ fn wallet_state(state: State<'_, AppState>) -> Result<WalletState, String> {
 }
 
 #[tauri::command]
-fn import_wallet(state: State<'_, AppState>) -> Result<WalletState, String> {
+async fn import_wallet(state: State<'_, AppState>) -> Result<WalletState, String> {
     require_authenticated(&state)?;
-    let (address, private_key) = wallet::prompt_and_derive()?;
+    let (address, private_key) = tauri::async_runtime::spawn_blocking(wallet::prompt_and_derive)
+        .await
+        .map_err(|_| "The secure wallet-entry task could not be started.".to_string())??;
+    require_authenticated(&state)?;
     let previous = wallet::replace_secret(&private_key)?;
     let update_result = (|| -> Result<(), String> {
         let db = state.db.lock().map_err(|_| "Database is unavailable".to_string())?;
@@ -330,6 +333,21 @@ mod tests {
         let version: i64 = conn.query_row("SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0)).unwrap();
         assert_eq!(version, 1);
         drop(conn);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn idle_session_expires_and_revokes_authenticated_state() {
+        let path = std::env::temp_dir().join(format!("arbx-session-test-{}.sqlite3", Uuid::new_v4()));
+        let db = initialize_database(path.clone()).unwrap();
+        let state = AppState {
+            db: Mutex::new(db),
+            authenticated: Mutex::new(true),
+            last_activity: Mutex::new(Instant::now() - SESSION_IDLE_TIMEOUT - Duration::from_secs(1)),
+        };
+        assert!(!session_is_authenticated(&state).unwrap());
+        assert!(!*state.authenticated.lock().unwrap());
+        drop(state);
         let _ = fs::remove_file(path);
     }
 }
