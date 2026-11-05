@@ -4,7 +4,7 @@
 
 The intended application will let a user configure strategies, monitor prices across selected DEX venues, evaluate opportunities after transaction costs, and review portfolio performance and completed trades through a graphical dashboard. The long-term target is a standalone Windows application distributed as an `.exe`.
 
-> **Project status:** Initial desktop UI scaffold committed. The current preview uses fixture data only; wallet security, persistence, live Polygon connectivity, DEX quotes, and trading are not implemented.
+> **Project status:** The desktop shell, local password/session security, SQLite strategy persistence, Windows Credential Manager wallet storage, and user-configured read-only Polygon RPC health checks are implemented. DEX quotes, balances, transaction simulation, signing, and trading are not implemented.
 
 ## Product scope
 
@@ -33,7 +33,7 @@ The product specification intentionally does not define the software architectur
 
 ## Current development stage
 
-The initial Tauri + React + TypeScript + Rust scaffold is now in the repository. The current milestone is a desktop UI preview with dashboard navigation, strategy creation, History, and Settings surfaces. It uses illustrative data and temporary in-memory strategy state only. The next step is to validate the scaffold with a Windows build, then add local persistence and the security foundation. Live trading is deliberately deferred until atomic route simulation, risk controls, and transaction handling have been validated.
+The Tauri + React + TypeScript + Rust desktop shell is in the repository. Local authentication, SQLite strategy persistence, secure wallet credential storage, and a read-only Polygon PoS RPC endpoint/health-check flow are implemented. Dashboard portfolio figures and chart remain illustrative; the strategy configuration is persisted locally, but no DEX data or token balances are queried yet. Live trading is deliberately deferred until the atomic route, simulation, risk controls, and transaction lifecycle have been implemented and reviewed.
 
 Until then, this repository is the project’s source of truth for agreed product documentation. Work should be committed to the `main` branch unless the project workflow is deliberately changed.
 
