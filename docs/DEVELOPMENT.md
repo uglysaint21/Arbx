@@ -2,17 +2,29 @@
 
 ## Current milestone
 
-The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop shell.
+The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop shell and the first native local-foundation slice.
 
-This milestone is a UI preview only:
-- Dashboard, navigation, strategy creation, History, and Settings surfaces are present.
-- Portfolio figures and chart are illustrative fixture data.
-- Polygon PoS is shown as the initial target network (chain ID 137).
-- Strategy data exists only in frontend memory and is lost when the app reloads.
-- Demo venues are placeholders, not connected DEX deployments.
-- The bot toggle changes preview UI state only. It does not start a scanner.
-- Wallet import, password authentication, SQLite, RPC access, quotes, signing, and trading are not implemented.
-- Never enter a real private key into this preview.
+### Implemented in the native core
+
+- SQLite database created in the operating system's per-user application-data directory.
+- Versioned schema migration ledger (migration 1) and initial settings/strategy tables.
+- First-launch password setup with a minimum 12-character password.
+- Passwords are stored as Argon2id password hashes with per-password random salts; plaintext passwords are not stored.
+- Login and explicit application lock commands.
+- Persistent Polygon PoS strategy create/list/delete commands.
+- Native commands reject strategy access while the application is locked.
+- Token address validation, distinct-token validation, and duplicate-venue rejection are performed again in Rust, not trusted solely to frontend validation.
+
+### Still not implemented
+
+- React login/setup/lock screens are not yet connected to these native commands.
+- Windows Credential Manager / DPAPI-backed private-key storage and wallet import.
+- Wallet address derivation and display.
+- Automatic idle lock, password reset/recovery, and session timeout policy.
+- Database backup/restore UI.
+- Live Polygon RPC, DEX quotes, signing, and trading.
+
+The existing dashboard remains a preview UI. Its metrics and chart are illustrative. The browser preview does not provide the native SQLite/password functionality.
 
 ## Prerequisites
 
