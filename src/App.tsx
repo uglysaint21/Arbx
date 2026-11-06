@@ -37,6 +37,7 @@ export default function App() {
       setAuth(old=>({...old,authenticated:false}));
       setStrategies([]);
       setWallet({connected:false,address:null});
+      setWalletBalances(null);
     }
     setToast(s);window.setTimeout(()=>setToast(""),2600)
   };
@@ -78,7 +79,7 @@ export default function App() {
     catch(error){notify(String(error))}
   };
   const lock=async()=>{
-    try { await invoke("lock_app"); setAuth(old=>({...old,authenticated:false})); setStrategies([]); setWallet({connected:false,address:null}); }
+    try { await invoke("lock_app"); setAuth(old=>({...old,authenticated:false})); setStrategies([]); setWallet({connected:false,address:null}); setWalletBalances(null); }
     catch(error){notify(String(error))}
   };
   const authenticated= !desktop || auth.authenticated;
@@ -136,6 +137,7 @@ export default function App() {
         setAuth(old=>({...old,authenticated:false}));
         setStrategies([]);
         setWallet({connected:false,address:null});
+        setWalletBalances(null);
         setToast("Workspace locked after 15 minutes of inactivity.");
       }).catch(()=>{});
     }
