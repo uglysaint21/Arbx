@@ -248,7 +248,7 @@ mod tests{
         assert!(decode_abi_string("0x").is_err());
     }
     #[test]fn quantity_parser_checks_hex_and_bounds(){
-        assert_eq!(parse_quantity("0x89").unwrap(),137);assert_eq!(parse_quantity("0x0").unwrap(),0);
+        assert_eq!(parse_quantity("0x89").unwrap(),137);assert_eq!(parse_quantity("0x0").unwrap(),0);assert_eq!(parse_quantity(&format!("0x{}12","0".repeat(62))).unwrap(),18);
         assert!(parse_quantity("137").is_err());assert!(parse_quantity("0x").is_err());assert!(parse_quantity("0x10000000000000000").is_err());
     }
 }
