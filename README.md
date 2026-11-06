@@ -4,7 +4,7 @@
 
 The intended application will let a user configure strategies, monitor prices across selected DEX venues, evaluate opportunities after transaction costs, and review portfolio performance and completed trades through a graphical dashboard. The long-term target is a standalone Windows application distributed as an `.exe`.
 
-> **Project status:** The desktop shell, local password/session security, SQLite strategy persistence, Windows Credential Manager wallet storage, and user-configured read-only Polygon RPC health checks are implemented. DEX quotes, balances, transaction simulation, signing, and trading are not implemented.
+> **Project status:** The desktop shell, local password/session security, SQLite strategy persistence, Windows Credential Manager wallet storage, and user-configured read-only Polygon RPC health checks are implemented. DEX quotes, transaction simulation, signing, and trading are not implemented. Read-only POL and selected ERC-20 balances are implemented.
 
 ## Product scope
 
@@ -50,11 +50,11 @@ Source code and project documentation: [github.com/uglysaint21/Arbx](https://git
 
 The desktop shell now includes first-launch password setup, login, manual locking, 15-minute inactivity locking, local SQLite strategy persistence, and a Windows-native wallet import/removal flow. Imported private keys are stored in the current Windows user's Credential Manager; only the derived public address is shown in the UI and saved in SQLite.
 
-The wallet import flow has not been tested with a real user key. That test is intentionally deferred to the owner's final acceptance step. ArbX now has user-configured read-only Polygon RPC health checks, but no token-balance reads, ERC-20 metadata, DEX quote engine, paper trading, transaction simulation, signing, or live trading. Dashboard figures remain illustrative.
+The wallet import flow has not been tested with a real user key. That test is intentionally deferred to the owner's final acceptance step. ArbX now has user-configured read-only Polygon RPC health checks, and supports read-only POL and selected ERC-20 balance/metadata reads; it has no DEX quote engine, paper trading, transaction simulation, signing, or live trading. Dashboard figures remain illustrative.
 
 
 ## Polygon read-only connectivity
 
 The native Settings page now supports a user-supplied Polygon PoS JSON-RPC endpoint. The endpoint is entered through a native Windows credential prompt and stored in Windows Credential Manager. ArbX validates the provider's chain ID (137) and reads the latest block number when the user explicitly tests the connection. The endpoint is not exposed to the frontend or stored in SQLite.
 
-This is read-only connectivity only. Wallet balances, ERC-20 metadata, DEX quotes, transaction simulation, signing, and trading are not yet implemented. No private-key test is performed during RPC setup.
+This is read-only connectivity. ArbX can query the imported wallet's POL balance and user-supplied ERC-20 contract balances and metadata. It does not implement DEX quotes, transaction simulation, signing, or trading. No private-key test is performed during RPC setup.
