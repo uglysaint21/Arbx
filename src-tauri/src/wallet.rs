@@ -234,3 +234,6 @@ pub fn prompt_for_rpc_endpoint() -> Result<Zeroizing<String>, String> {
 }
 #[cfg(not(windows))]
 pub fn prompt_for_rpc_endpoint()->Result<Zeroizing<String>,String>{Err("RPC endpoint configuration is currently supported only in the Windows desktop application.".into())}
+
+#[cfg(not(windows))]
+pub fn stored_address() -> Result<Option<String>, String> { Ok(None) }
