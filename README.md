@@ -1,60 +1,70 @@
 # ArbX
 
-**ArbX** is a locally operated desktop application in early development for monitoring and executing token-pair arbitrage opportunities across decentralised exchanges (DEXs) on the same blockchain.
+**ArbX** is a locally operated desktop application in development for monitoring and, eventually, executing token-pair arbitrage opportunities across decentralised exchanges (DEXs) on the same blockchain. The intended release is a standalone Windows application.
 
-The intended application will let a user configure strategies, monitor prices across selected DEX venues, evaluate opportunities after transaction costs, and review portfolio performance and completed trades through a graphical dashboard. The long-term target is a standalone Windows application distributed as an `.exe`.
+> **Current status:** The Tauri desktop foundation, local authentication, SQLite strategy persistence, Windows Credential Manager wallet storage, Polygon PoS read-only RPC connectivity, and read-only POL/ERC-20 balance retrieval have implementation in the repository. DEX quotes, opportunity detection, atomic transaction simulation, signing, and trading are not implemented. Windows build/CI and live wallet-balance acceptance still require confirmation; see the [development log](docs/DEVELOPMENT_LOG.md).
 
-> **Project status:** The desktop shell, local password/session security, SQLite strategy persistence, Windows Credential Manager wallet storage, and user-configured read-only Polygon RPC health checks are implemented. DEX quotes, balances, transaction simulation, signing, and trading are not implemented.
+## Product direction
 
-## Product scope
-
-The current product direction includes:
+The intended product includes:
 
 - A locally running, password-protected desktop application.
-- Local protection and storage of wallet credentials.
+- Local protection of wallet credentials.
 - User-configured token-pair strategies.
-- Same-chain arbitrage comparisons across supported DEXs.
-- A profitability check that accounts for transaction fees before a trade is executed.
+- Same-chain price comparison across supported DEX venues.
+- Profitability evaluation after applicable execution costs.
 - A dashboard for portfolio balance, P&L, and active strategies.
-- A trade history showing expected and realised outcomes.
+- Trade history distinguishing expected from realised outcomes.
 - A dark, professional visual identity with typewriter-inspired typography, orange and white accents, frosted-glass panels, and restrained animations.
 
-The initial DEX examples are Uniswap, PancakeSwap, and SushiSwap. The exact supported blockchains, DEX availability per chain, trading route, funding model, and several execution safeguards remain to be decided.
+Version 1 is scoped to **Polygon PoS (EVM, chain ID 137)**. The product specification names Uniswap, PancakeSwap, and SushiSwap as initial DEX examples; exact Polygon deployments and supported execution routes still need to be selected and verified.
 
-## Product documentation
+The intended arbitrage cycle buys the target token on one DEX and sells it back into the starting token on another. Both legs must execute atomically in one transaction. Two independent swap transactions are not an acceptable substitute.
 
-The product behaviour and visual direction are documented in:
+## Documentation
 
-- **[ArbX Product Specification](docs/PRODUCT_SPECIFICATION.md)** — product overview, user flows, dashboard, settings, history, arbitrage behaviour, visual direction, boundaries, and open product decisions.
-- **[ArbX Architecture](docs/ARCHITECTURE.md)** — confirmed stack and chain scope, application boundaries, atomic trading workflow, security model, data concepts, testing strategy, and build phases.
-- **[Development Guide](docs/DEVELOPMENT.md)** — prerequisites and commands for running the current preview.
+- [Product Specification](docs/PRODUCT_SPECIFICATION.md) — product behaviour, user flows, trading intent, visual direction, boundaries, and open product decisions.
+- [Architecture](docs/ARCHITECTURE.md) — technical structure, system boundaries, security model, data concepts, testing approach, and build phases.
+- [Development Guide](docs/DEVELOPMENT.md) — prerequisites and commands for running/building the application.
+- [Development Log](docs/DEVELOPMENT_LOG.md) — chronological record of product clarification and engineering milestones, including verification caveats.
+- [Roadmap](docs/ROADMAP.md) — phased plan from current verification through DEX data, simulation, paper trading, and controlled execution.
+- [Wiki-ready pages](docs/wiki/Home.md) — version-controlled wiki entry points and page mirrors.
 
-The product specification intentionally does not define the software architecture or implementation. Those will be documented separately after the remaining product decisions are clarified.
+The repository documentation is the source of truth for the current project status. The files under `docs/wiki/` are wiki-ready mirrors; they are not themselves the GitHub-hosted Wiki pages.
 
-## Current development stage
+## Current implementation
 
-The Tauri + React + TypeScript + Rust desktop shell is in the repository. Local authentication, SQLite strategy persistence, secure wallet credential storage, and a read-only Polygon PoS RPC endpoint/health-check flow are implemented. Dashboard portfolio figures and chart remain illustrative; the strategy configuration is persisted locally, but no DEX data or token balances are queried yet. Live trading is deliberately deferred until the atomic route, simulation, risk controls, and transaction lifecycle have been implemented and reviewed.
+### Implemented in the repository
 
-Until then, this repository is the project’s source of truth for agreed product documentation. Work should be committed to the `main` branch unless the project workflow is deliberately changed.
+- Tauri 2 + React + TypeScript + Rust desktop application foundation.
+- First-launch password setup, login, manual lock, and 15-minute inactivity lock.
+- Argon2id password hashing and local SQLite persistence.
+- Strategy create/list/delete persistence with native validation.
+- Windows-native wallet import/removal using Windows Credential Manager; private-key material is not exposed to React or SQLite.
+- User-configured Polygon PoS JSON-RPC endpoint stored in Windows Credential Manager.
+- Read-only chain ID/block health checks.
+- Read-only POL balance and selected ERC-20 symbol, decimals, and balance reads.
 
-## Scope and safety notes
+### Not yet implemented
 
-ArbX is intended to interact with cryptocurrency wallets and execute on-chain transactions. Any eventual implementation must treat wallet credentials and transaction execution as security-critical. The product specification records the intended user experience; it is not a security audit, trading guarantee, or implementation claim.
+- DEX adapters and live quote retrieval.
+- Cross-venue opportunity detection and net-profit calculation.
+- Atomic route construction and transaction simulation.
+- Paper trading.
+- Dedicated transaction signing, approvals, transaction broadcast, or live trading.
+- Live portfolio valuation, P&L, and completed-trade history; dashboard figures remain illustrative.
 
-## Repository
+### Verification status
 
-Source code and project documentation: [github.com/uglysaint21/Arbx](https://github.com/uglysaint21/Arbx)
+Code being present does not mean it has passed acceptance. The latest workflow run inspected during the documentation update was cancelled, not successful. A successful Windows build, Rust test run, real-wallet import test, and live POL/ERC-20 balance verification have not been confirmed. The next checkpoint is to complete those checks before starting DEX integration.
 
+## Security boundaries
 
-## Current implementation status
+- Never commit or share private keys, seed phrases, or credential-bearing RPC endpoints.
+- Keep wallet secrets and RPC credentials inside the native secure-storage boundary.
+- Keep read-only connectivity separate from transaction signing and execution.
+- Do not enable live transaction submission until atomicity, quote validation, simulation, risk limits, transaction lifecycle handling, and security review are complete.
 
-The desktop shell now includes first-launch password setup, login, manual locking, 15-minute inactivity locking, local SQLite strategy persistence, and a Windows-native wallet import/removal flow. Imported private keys are stored in the current Windows user's Credential Manager; only the derived public address is shown in the UI and saved in SQLite.
+## Development workflow
 
-The wallet import flow has not been tested with a real user key. That test is intentionally deferred to the owner's final acceptance step. ArbX now has user-configured read-only Polygon RPC health checks, but no token-balance reads, ERC-20 metadata, DEX quote engine, paper trading, transaction simulation, signing, or live trading. Dashboard figures remain illustrative.
-
-
-## Polygon read-only connectivity
-
-The native Settings page now supports a user-supplied Polygon PoS JSON-RPC endpoint. The endpoint is entered through a native Windows credential prompt and stored in Windows Credential Manager. ArbX validates the provider's chain ID (137) and reads the latest block number when the user explicitly tests the connection. The endpoint is not exposed to the frontend or stored in SQLite.
-
-This is read-only connectivity only. Wallet balances, ERC-20 metadata, DEX quotes, transaction simulation, signing, and trading are not yet implemented. No private-key test is performed during RPC setup.
+Development milestones and verification evidence should be recorded in [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md), and planned work should be updated in [docs/ROADMAP.md](docs/ROADMAP.md). Do not mark a phase complete until its stated verification gates pass.
