@@ -57,8 +57,8 @@ pub fn clear_endpoint()->Result<(),String>{match entry()?.delete_credential(){Ok
 #[cfg(not(windows))]
 pub fn clear_endpoint()->Result<(),String>{Err("RPC endpoint storage is supported only in the Windows desktop application.".into())}
 
-async fn rpc_string(client:&Client,endpoint:&str,method:&str)->Result<String,String>{
-    let response=client.post(endpoint).json(&json!({"jsonrpc":"2.0","id":1,"method":method,"params":[]})).send().await.map_err(|_|"Could not reach the configured Polygon RPC provider.".to_string())?;
+async fn rpc_string_params(client:&Client,endpoint:&str,method:&str,params:Value)->Result<String,String>{
+    let response=client.post(endpoint).json(&json!({"jsonrpc":"2.0","id":1,"method":method,"params":params})).send().await.map_err(|_|"Could not reach the configured Polygon RPC provider.".to_string())?;
     if !response.status().is_success(){return Err(format!("The Polygon RPC provider returned HTTP {}.",response.status().as_u16()))}
     if response.content_length().map(|n|n>MAX_RESPONSE_BYTES as u64).unwrap_or(false){return Err("The Polygon RPC response exceeded the allowed size.".into())}
     let mut response=response;let mut body=Vec::with_capacity(1024);
@@ -68,12 +68,110 @@ async fn rpc_string(client:&Client,endpoint:&str,method:&str)->Result<String,Str
     }
     parse_rpc_result(&body)
 }
+async fn rpc_string(client:&Client,endpoint:&str,method:&str)->Result<String,String>{
+    rpc_string_params(client,endpoint,method,json!([])).await
+}
 fn parse_rpc_result(body:&[u8])->Result<String,String>{
     let parsed:Value=serde_json::from_slice(body).map_err(|_|"The Polygon RPC provider returned invalid JSON.".to_string())?;
     if parsed.get("jsonrpc").and_then(Value::as_str)!=Some("2.0")||parsed.get("id").and_then(Value::as_i64)!=Some(1){return Err("The Polygon RPC response did not match the JSON-RPC request.".into())}
     if parsed.get("error").filter(|error|!error.is_null()).is_some(){return Err("The Polygon RPC provider rejected the JSON-RPC request.".into())}
     parsed.get("result").and_then(Value::as_str).map(str::to_string).ok_or_else(||"The Polygon RPC response did not contain a valid result.".into())
 }
+
+#[derive(Serialize)]
+pub struct TokenBalance { address:String, symbol:String, decimals:u8, balance:String }
+#[derive(Serialize)]
+pub struct WalletBalances { address:String, native_balance:String, tokens:Vec<TokenBalance> }
+
+fn valid_evm_address(value:&str)->bool {
+    value.len()==42 && value.starts_with("0x") && value[2..].bytes().all(|b|b.is_ascii_hexdigit())
+}
+fn parse_big_quantity(value:&str)->Result<String,String>{
+    let digits=value.strip_prefix("0x").ok_or_else(||"The RPC provider returned an invalid hexadecimal balance.".to_string())?;
+    if digits.is_empty() || digits.len()>64 || !digits.bytes().all(|b|b.is_ascii_hexdigit()) {
+        return Err("The RPC provider returned an invalid hexadecimal balance.".into());
+    }
+    let mut decimal=String::from("0");
+    for byte in digits.bytes() {
+        let digit=(byte as char).to_digit(16).ok_or_else(||"The RPC provider returned an invalid hexadecimal balance.".to_string())? as u32;
+        let mut carry=digit;
+        let mut chars:Vec<u8>=decimal.bytes().collect();
+        for c in chars.iter_mut().rev() {
+            let value=((*c-b'0') as u32)*16+carry;
+            *c=b'0'+(value%10) as u8;
+            carry=value/10;
+        }
+        while carry>0 { chars.insert(0,b'0'+(carry%10) as u8); carry/=10; }
+        decimal=String::from_utf8(chars).map_err(|_|"Could not decode the token balance.".to_string())?;
+    }
+    Ok(decimal)
+}
+fn format_units(raw:&str,decimals:u8)->String{
+    let decimals=decimals as usize;
+    if decimals==0{return raw.to_string()}
+    let padded=if raw.len()<=decimals { format!("{}{}","0".repeat(decimals+1-raw.len()),raw) } else { raw.to_string() };
+    let split=padded.len()-decimals;
+    let whole=&padded[..split];
+    let fraction=padded[split..].trim_end_matches('0');
+    if fraction.is_empty(){whole.to_string()}else{format!("{whole}.{fraction}")}
+}
+fn decode_abi_string(value:&str)->Result<String,String>{
+    let data=value.strip_prefix("0x").ok_or_else(||"The token returned invalid symbol data.".to_string())?;
+    if data.len()<64 || data.len()%2!=0 || !data.bytes().all(|b|b.is_ascii_hexdigit()) {
+        return Err("The token returned invalid symbol data.".into());
+    }
+    let offset=usize::from_str_radix(&data[..64],16).unwrap_or(usize::MAX);
+    let (start,len)=if offset==32 && data.len()>=128 {
+        let len=usize::from_str_radix(&data[64..128],16).map_err(|_|"The token returned invalid symbol data.".to_string())?;
+        (128,len)
+    } else {(0,32)};
+    if len==0 || len>64 || data.len()<start+len*2{return Err("The token returned an unsupported symbol value.".into())}
+    let bytes=(0..len).map(|i|u8::from_str_radix(&data[start+i*2..start+i*2+2],16).unwrap_or(0)).collect::<Vec<_>>();
+    let symbol=String::from_utf8(bytes).map_err(|_|"The token symbol is not valid UTF-8.".to_string())?;
+    let symbol=symbol.trim_matches(char::from(0)).trim().to_string();
+    if symbol.is_empty() || symbol.chars().any(char::is_control){return Err("The token returned an invalid symbol.".into())}
+    Ok(symbol)
+}
+async fn eth_call(client:&Client,endpoint:&str,to:&str,data:String)->Result<String,String>{
+    rpc_string_params(client,endpoint,"eth_call",json!([{"to":to,"data":data},"latest"])).await
+}
+pub async fn read_saved_wallet_balances(address:String,token_addresses:Vec<String>)->Result<WalletBalances,String>{
+    if !valid_evm_address(&address){return Err("The saved wallet address is invalid. Re-import the wallet before continuing.".into())}
+    if token_addresses.len()>10{return Err("Read up to 10 token contracts at a time.".into())}
+    for token in &token_addresses {
+        if !valid_evm_address(token){return Err("Every token contract must be a valid 20-byte EVM address.".into())}
+    }
+    let endpoint=load_endpoint()?;
+    let client=Client::builder().timeout(Duration::from_secs(12)).connect_timeout(Duration::from_secs(5)).redirect(Policy::none()).build().map_err(|_|"The Polygon RPC client could not be initialized.".to_string())?;
+    let chain=parse_quantity(&rpc_string(&client,&endpoint,"eth_chainId").await?)?;
+    if chain!=POLYGON_CHAIN_ID{return Err(format!("The configured RPC endpoint reported chain ID {chain}; ArbX requires Polygon PoS chain ID 137."))}
+    let native=rpc_string_params(&client,&endpoint,"eth_getBalance",json!([address,"latest"])).await?;
+    let native_balance=format_units(&parse_big_quantity(&native)?,18);
+    let mut tokens=Vec::with_capacity(token_addresses.len());
+    for token in token_addresses {
+        let code=eth_call(&client,&endpoint,&token,"0x".to_string()).await?;
+        if code=="0x" || code=="0x0" {return Err(format!("No contract code was found at token address {token} on Polygon."))}
+        let symbol_data=eth_call(&client,&endpoint,&token,"0x95d89b41".to_string()).await?;
+        let decimals_data=eth_call(&client,&endpoint,&token,"0x313ce567".to_string()).await?;
+        let decimals_raw=parse_quantity(&decimals_data)?;
+        if decimals_raw>36{return Err(format!("Token {token} reports unsupported decimals."))}
+        let decimals=decimals_raw as u8;
+        let balance_data=eth_call(&client,&endpoint,&token,format!("0x70a08231{:0>64}",&address[2..].to_lowercase())).await?;
+        let symbol=decode_abi_string(&symbol_data)?;
+        let balance=format_units(&parse_big_quantity(&balance_data)?,decimals);
+        tokens.push(TokenBalance{address:token,symbol,decimals,balance});
+    }
+    Ok(WalletBalances{address,native_balance,tokens})
+}
+#[tauri::command]
+pub async fn read_wallet_balances(token_addresses:Vec<String>,state:State<'_,crate::AppState>)->Result<WalletBalances,String>{
+    crate::require_authenticated(&state)?;
+    let address=crate::wallet::stored_address()?.ok_or_else(||"Import a wallet before reading balances.".to_string())?;
+    let result=read_saved_wallet_balances(address,token_addresses).await?;
+    crate::require_authenticated(&state)?;
+    Ok(result)
+}
+
 pub async fn test_saved_endpoint()->Result<RpcHealth,String>{
     let endpoint=load_endpoint()?;
     let client=Client::builder().timeout(Duration::from_secs(10)).connect_timeout(Duration::from_secs(5)).redirect(Policy::none()).build().map_err(|_|"The Polygon RPC client could not be initialized.".to_string())?;
@@ -126,6 +224,25 @@ mod tests{
         assert!(parse_rpc_result(br#"{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":"failed"}}"#).is_err());
         assert!(parse_rpc_result(br#"{"jsonrpc":"2.0","id":1}"#).is_err());
         assert!(parse_rpc_result(b"not json").is_err());
+    }
+
+    #[test]fn big_integer_and_unit_formatting_are_exact(){
+        assert_eq!(parse_big_quantity("0x0").unwrap(),"0");
+        assert_eq!(parse_big_quantity("0xff").unwrap(),"255");
+        assert_eq!(parse_big_quantity("0xde0b6b3a7640000").unwrap(),"1000000000000000000");
+        assert_eq!(format_units("1000000000000000000",18),"1");
+        assert_eq!(format_units("1234500",6),"1.2345");
+        assert_eq!(format_units("12",4),"0.0012");
+    }
+    #[test]fn token_address_validation_rejects_malformed_values(){
+        assert!(valid_evm_address(&format!("0x{}","a".repeat(40))));
+        assert!(!valid_evm_address("0x1234"));
+        assert!(!valid_evm_address(&format!("0x{}","g".repeat(40))));
+    }
+    #[test]fn decodes_erc20_symbol_abi_values(){
+        assert_eq!(decode_abi_string("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003555344430000000000000000000000000000000000000000000000000000000000").unwrap(),"USDC");
+        assert_eq!(decode_abi_string("0x5553444300000000000000000000000000000000000000000000000000000000").unwrap(),"USDC");
+        assert!(decode_abi_string("0x").is_err());
     }
     #[test]fn quantity_parser_checks_hex_and_bounds(){
         assert_eq!(parse_quantity("0x89").unwrap(),137);assert_eq!(parse_quantity("0x0").unwrap(),0);
