@@ -10,6 +10,7 @@ type AuthState = {has_password:boolean; authenticated:boolean};
 type WalletState = {connected:boolean; address:string|null};
 type RpcState = {configured:boolean};
 type RpcHealth = {connected:boolean; chain_id:number; block_number:number};
+type WalletBalances = {address:string; native_balance:string; tokens:{address:string;symbol:string;decimals:number;balance:string}[]};
 const navigation: {label:Page; icon:typeof LayoutDashboard}[] = [
   {label:"Overview",icon:LayoutDashboard},{label:"Strategies",icon:SlidersHorizontal},{label:"History",icon:Clock3},{label:"Settings",icon:Settings2}
 ];
@@ -28,6 +29,9 @@ export default function App() {
   const [rpc,setRpc]=useState<RpcState>({configured:false});
   const [rpcHealth,setRpcHealth]=useState<RpcHealth|null>(null);
   const [rpcBusy,setRpcBusy]=useState(false);
+  const [tokenAddress,setTokenAddress]=useState("");
+  const [walletBalances,setWalletBalances]=useState<WalletBalances|null>(null);
+  const [balanceBusy,setBalanceBusy]=useState(false);
   const notify=(s:string)=>{
     if(s.toLowerCase().includes("application is locked")){
       setAuth(old=>({...old,authenticated:false}));
@@ -91,6 +95,18 @@ export default function App() {
     catch(error){notify(String(error))}
     finally {setWalletBusy(false)}
   };
+  const readBalances=async()=>{
+    if(!desktop){notify("Wallet balance reads are available in the Windows desktop app.");return}
+    if(!wallet.connected){notify("Import a wallet before reading balances.");return}
+    const tokens=tokenAddress.trim()? [tokenAddress.trim()]:[];
+    setBalanceBusy(true);
+    try{
+      const result=await invoke<WalletBalances>("read_wallet_balances",{tokenAddresses:tokens});
+      setWalletBalances(result);
+      notify("Polygon wallet balances updated.");
+    }catch(error){setWalletBalances(null);notify(String(error))}
+    finally{setBalanceBusy(false)}
+  };
   const configureRpc=async()=>{
     if(!desktop){notify("Polygon RPC configuration is available in the Windows desktop app.");return}
     setRpcBusy(true);
@@ -150,7 +166,7 @@ export default function App() {
         {page==="History"&&<><div className="notice"><Clock3 size={17}/><div><b>History is not connected</b><span>Trade records will appear after the trading engine and local database are implemented.</span></div><strong>NO TRADES</strong></div><section className="panel empty full"><div><Clock3 size={22}/></div><b>No trades recorded</b><p>Confirmed and reconciled trades will appear here. Rejected opportunities will never be labelled as completed trades.</p></section></>}
         {page==="Settings"&&<div className="settings-grid">
           <Setting icon={<ShieldCheck size={18}/>} title="Application security" text="Password-protected local workspace with automatic locking after 15 minutes of inactivity. Wallet secrets are kept outside the application database." status="LOCAL SECURITY ACTIVE"/>
-          <section className="panel setting wallet-setting"><i><Wallet size={18}/></i><div className="wallet-info"><b>Wallet</b><p>{wallet.connected&&wallet.address?<>Imported wallet <strong>{wallet.address.slice(0,8)}…{wallet.address.slice(-6)}</strong>. The private key is held in Windows Credential Manager and is never returned to the interface.</>:"No wallet is currently imported. Import opens a native Windows secure credential prompt; the private key is not typed into ArbX's web interface."}</p><small>{wallet.connected?"WALLET CONNECTED · POLYGON EVM ADDRESS":"WALLET NOT CONNECTED"}</small><div className="wallet-actions"><button className="secondary" onClick={importWallet} disabled={!desktop||walletBusy}>{walletBusy?"PLEASE WAIT":wallet.connected?"REPLACE WALLET":"IMPORT WALLET"}</button>{wallet.connected&&<button className="text-button" onClick={removeWallet} disabled={walletBusy}>REMOVE</button>}</div></div></section>
+          <section className="panel setting wallet-setting"><i><Wallet size={18}/></i><div className="wallet-info"><b>Wallet</b><p>{wallet.connected&&wallet.address?<>Imported wallet <strong>{wallet.address.slice(0,8)}…{wallet.address.slice(-6)}</strong>. The private key is held in Windows Credential Manager and is never returned to the interface.</>:"No wallet is currently imported. Import opens a native Windows secure credential prompt; the private key is not typed into ArbX's web interface."}</p><small>{wallet.connected?"WALLET CONNECTED · POLYGON EVM ADDRESS":"WALLET NOT CONNECTED"}</small><div className="wallet-actions"><button className="secondary" onClick={importWallet} disabled={!desktop||walletBusy}>{walletBusy?"PLEASE WAIT":wallet.connected?"REPLACE WALLET":"IMPORT WALLET"}</button>{wallet.connected&&<button className="text-button" onClick={removeWallet} disabled={walletBusy}>REMOVE</button>}</div>{wallet.connected&&<div className="balance-tools"><label htmlFor="token-contract">OPTIONAL ERC-20 CONTRACT ADDRESS</label><input id="token-contract" value={tokenAddress} onChange={e=>setTokenAddress(e.target.value)} placeholder="0x… (leave blank for POL only)" autoComplete="off" spellCheck={false}/><button className="secondary" onClick={readBalances} disabled={!desktop||!rpc.configured||balanceBusy}>{balanceBusy?"READING BALANCES…":"READ ON-CHAIN BALANCES"}</button>{walletBalances&&<div className="balance-results"><div><span>POL BALANCE</span><strong>{walletBalances.native_balance} POL</strong></div>{walletBalances.tokens.map(token=><div key={token.address}><span>{token.symbol} · {token.address.slice(0,8)}…</span><strong>{token.balance} {token.symbol}</strong></div>)}</div>}<small>READ-ONLY · Polygon PoS RPC · no signing or transactions</small></div>}</div></section>
           <section className="panel setting network-setting"><i><Globe size={18}/></i><div className="network-info"><b>Polygon PoS network</b><p>Connect a Polygon PoS JSON-RPC provider for read-only chain access. The endpoint is stored in Windows Credential Manager and is never displayed in ArbX.</p><small>{rpcHealth?.connected?"CONNECTED · POLYGON POS · CHAIN ID 137":rpc.configured?"ENDPOINT SAVED · NOT TESTED":"NO RPC ENDPOINT CONFIGURED"}</small>{rpcHealth?.connected&&<div className="rpc-details"><span>CHAIN ID <strong>{rpcHealth.chain_id}</strong></span><span>LATEST BLOCK <strong>{rpcHealth.block_number.toLocaleString()}</strong></span></div>}<div className="wallet-actions"><button className="secondary" onClick={configureRpc} disabled={!desktop||rpcBusy}>{rpcBusy?"PLEASE WAIT":rpc.configured?"REPLACE ENDPOINT":"CONFIGURE ENDPOINT"}</button><button className="secondary" onClick={testRpc} disabled={!desktop||!rpc.configured||rpcBusy}><RefreshCw size={12}/> TEST CONNECTION</button>{rpc.configured&&<button className="text-button" onClick={clearRpc} disabled={rpcBusy}>CLEAR</button>}</div></div></section>
           <Setting icon={<CircleHelp size={18}/>} title="About ArbX" text="A local workstation for evaluating same-chain token-pair arbitrage opportunities." status="VERSION 0.1.0 PREVIEW"/>
         </div>}
