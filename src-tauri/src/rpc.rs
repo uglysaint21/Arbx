@@ -149,7 +149,7 @@ pub async fn read_saved_wallet_balances(address:String,token_addresses:Vec<Strin
     let native_balance=format_units(&parse_big_quantity(&native)?,18);
     let mut tokens=Vec::with_capacity(token_addresses.len());
     for token in token_addresses {
-        let code=eth_call(&client,&endpoint,&token,"0x".to_string()).await?;
+        let code=rpc_string_params(&client,&endpoint,"eth_getCode",json!([token,"latest"])).await?;
         if code=="0x" || code=="0x0" {return Err(format!("No contract code was found at token address {token} on Polygon."))}
         let symbol_data=eth_call(&client,&endpoint,&token,"0x95d89b41".to_string()).await?;
         let decimals_data=eth_call(&client,&endpoint,&token,"0x313ce567".to_string()).await?;
@@ -243,7 +243,7 @@ mod tests{
         assert!(!valid_evm_address(&format!("0x{}","g".repeat(40))));
     }
     #[test]fn decodes_erc20_symbol_abi_values(){
-        assert_eq!(decode_abi_string("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003555344430000000000000000000000000000000000000000000000000000000000").unwrap(),"USDC");
+        assert_eq!(decode_abi_string("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000004555344430000000000000000000000000000000000000000000000000000000000").unwrap(),"USDC");
         assert_eq!(decode_abi_string("0x5553444300000000000000000000000000000000000000000000000000000000").unwrap(),"USDC");
         assert!(decode_abi_string("0x").is_err());
     }
