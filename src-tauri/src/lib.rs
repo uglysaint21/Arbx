@@ -359,7 +359,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             auth_state, setup_password, login, lock_app,
             wallet_state, import_wallet, remove_wallet,
-            rpc::polygon_rpc_state, rpc::configure_polygon_rpc, rpc::test_polygon_rpc, rpc::clear_polygon_rpc,
+            rpc::polygon_rpc_state, rpc::configure_polygon_rpc, rpc::test_polygon_rpc, rpc::clear_polygon_rpc, rpc::read_wallet_balances,
             list_strategies, create_strategy, delete_strategy
         ])
         .run(tauri::generate_context!())
