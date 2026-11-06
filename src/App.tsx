@@ -49,6 +49,7 @@ export default function App() {
     if(!desktop)return;
     const status=await invoke<WalletState>("wallet_state");
     setWallet(status);
+    if(!status.connected)setWalletBalances(null);
   };
   const refreshRpc=async()=>{
     if(!desktop)return;
@@ -84,14 +85,14 @@ export default function App() {
   const importWallet=async()=>{
     if(!desktop){notify("Wallet import is available in the Windows desktop app.");return}
     setWalletBusy(true);
-    try { const status=await invoke<WalletState>("import_wallet"); setWallet(status); notify("Wallet imported into Windows Credential Manager."); }
+    try { const status=await invoke<WalletState>("import_wallet"); setWallet(status); setWalletBalances(null); notify("Wallet imported into Windows Credential Manager."); }
     catch(error){ if(!String(error).toLowerCase().includes("cancelled")) notify(String(error)); }
     finally { setWalletBusy(false); }
   };
   const removeWallet=async()=>{
     if(!desktop || !window.confirm("Remove the imported wallet from this ArbX installation? This deletes its saved private key from Windows Credential Manager.")) return;
     setWalletBusy(true);
-    try { await invoke("remove_wallet"); setWallet({connected:false,address:null}); notify("Wallet removed from this installation."); }
+    try { await invoke("remove_wallet"); setWallet({connected:false,address:null}); setWalletBalances(null); notify("Wallet removed from this installation."); }
     catch(error){notify(String(error))}
     finally {setWalletBusy(false)}
   };
