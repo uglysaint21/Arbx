@@ -182,8 +182,11 @@ pub async fn test_saved_endpoint()->Result<RpcHealth,String>{
 }
 fn parse_quantity(value:&str)->Result<u64,String>{
     let digits=value.strip_prefix("0x").ok_or_else(||"The Polygon RPC provider returned an invalid hexadecimal quantity.".to_string())?;
-    if digits.is_empty()||digits.len()>16||!digits.bytes().all(|b|b.is_ascii_hexdigit()){return Err("The Polygon RPC provider returned an invalid hexadecimal quantity.".into())}
-    u64::from_str_radix(digits,16).map_err(|_|"The Polygon RPC provider returned an invalid hexadecimal quantity.".into())
+    if !digits.bytes().all(|b|b.is_ascii_hexdigit()){return Err("The Polygon RPC provider returned an invalid hexadecimal quantity.".into())}
+    let significant=digits.trim_start_matches('0');
+    if significant.len()>16{return Err("The Polygon RPC provider returned an invalid hexadecimal quantity.".into())}
+    if significant.is_empty(){return Ok(0)}
+    u64::from_str_radix(significant,16).map_err(|_|"The Polygon RPC provider returned an invalid hexadecimal quantity.".into())
 }
 
 #[tauri::command]
