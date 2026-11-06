@@ -36,7 +36,7 @@ The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop 
 
 ### Implemented in read-only wallet balance retrieval
 
-- The authenticated native command obtains the public wallet address from the Windows Credential Manager-backed wallet store; private-key bytes are not read or exposed for balance retrieval.
+- The authenticated native command obtains the public wallet address from the Windows Credential Manager-backed wallet store; the private key remains confined to the native secure-store reader and is never exposed to the UI or used for signing.
 - Reads native POL balance using `eth_getBalance` and can read up to 10 ERC-20 contracts per request using `eth_call` for `symbol`, `decimals`, and `balanceOf`.
 - Re-verifies Polygon PoS chain ID 137 before querying balances, validates EVM addresses, checks token contract bytecode, bounds response sizes/timeouts, and formats integer token units without floating-point arithmetic.
 - The Settings page exposes an optional token-contract address field and displays returned native/token balances. Leave the field blank to read POL only.
