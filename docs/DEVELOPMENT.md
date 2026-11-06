@@ -34,15 +34,23 @@ The repository contains the initial Tauri 2 + React + TypeScript + Rust desktop 
 - Settings displays only configured/connected status, verified chain ID, and latest block number; the endpoint itself is never returned to the UI.
 - This integration is read-only: it does not access the wallet key, sign, submit transactions, or query DEXs.
 
+### Implemented in read-only wallet balance retrieval
+
+- The authenticated native command obtains the public wallet address from the Windows Credential Manager-backed wallet store; private-key bytes are not read or exposed for balance retrieval.
+- Reads native POL balance using `eth_getBalance` and can read up to 10 ERC-20 contracts per request using `eth_call` for `symbol`, `decimals`, and `balanceOf`.
+- Re-verifies Polygon PoS chain ID 137 before querying balances, validates EVM addresses, checks token contract bytecode, bounds response sizes/timeouts, and formats integer token units without floating-point arithmetic.
+- The Settings page exposes an optional token-contract address field and displays returned native/token balances. Leave the field blank to read POL only.
+- This operation is strictly read-only: no key signing, allowance/approval, transaction construction, simulation, or broadcast.
+
 ### Still not implemented
 
 - Password reset/recovery and a user-configurable session timeout policy.
 - Automated Windows UI tests for the native credential prompt and Credential Manager integration.
 - A dedicated, reviewed signing service that reads the key only inside the native process when transaction signing is implemented.
 - Database backup/restore UI.
-- Live token balances and metadata, DEX quotes, signing, and trading.
+- DEX quotes, transaction simulation, signing, and trading.
 
-The dashboard metrics and chart remain illustrative. Explicit RPC health checks read only the Polygon chain ID and latest block; token balances, token metadata, DEX data, and transactions are not connected. The browser preview does not provide native SQLite, password, or Windows Credential Manager functionality. Wallet import has not been exercised with a real user wallet; that check is intentionally reserved for the owner's final end-to-end acceptance test.
+The dashboard metrics and chart remain illustrative. Explicit RPC health checks read the Polygon chain ID and latest block. The read-only wallet balance action now reads POL and user-entered ERC-20 token balances/metadata; DEX data and transactions are not connected. The browser preview does not provide native SQLite, password, or Windows Credential Manager functionality. Wallet import has not been exercised with a real user wallet; that check is intentionally reserved for the owner's final end-to-end acceptance test.
 
 ## Prerequisites
 
