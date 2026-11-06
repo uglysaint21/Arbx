@@ -10,6 +10,7 @@ ArbX is intended to become a locally operated desktop application for evaluating
 
 - [Development log](Development-Log) — project origin, product clarification, engineering milestones, verification record, and development discipline.
 - [Roadmap](Roadmap) — phased implementation plan, status labels, gates, and open decisions.
+- [Development review — 6 November 2026](Development-Review-2026-11-06) — dated status snapshot covering recent work, PRs, CI evidence, roadmap alignment, blockers, and next steps.
 - [Product specification](../PRODUCT_SPECIFICATION.md) — user-facing behaviour and visual direction.
 - [Architecture](../ARCHITECTURE.md) — technical structure and system boundaries.
 - [Development guide](../DEVELOPMENT.md) — prerequisites and commands.
